@@ -1,11 +1,11 @@
-title: Root Du Rhum - CTF Team
+title: Blog Hackvens - CTF Orga & CTF Team
 permalink: /:categories/:title.html
 email: ''
-description: Root Du Rhum CTF Team Writeups
+description: Hackvens CTF Orga & Team Writeups
 baseurl: ''
-url: 'https://rootdurhum.ghithub.io'
-twitter_username: rootdurhum
-github_username: rootdurhum
+url: 'https://blog.hackvens.fr'
+twitter_username: hackvens
+github_username: hackvens
 theme: minima
 plugins:
   - jekyll-feed
