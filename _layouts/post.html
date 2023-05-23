@@ -1,0 +1,19 @@
+---
+layout: main_post
+---
+<div class="post">
+    <div class="post__back">
+    	<a href="/">&lt;-- home</a>
+    </div>
+    <div class="post__title">
+    	<h1>{{ page.category | replace:'-',' ' }} / {{ page.title }}</h1>
+	<i>{{ page.date | date: '%B %-d, %Y' }}</i>
+    </div>
+    <div class="post__meta">
+    	<p>{{ tags_content }}</p>
+    </div>
+    <div class="post__content"?>
+        {{ content }}
+    </div>
+</div>
+

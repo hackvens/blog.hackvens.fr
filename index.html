@@ -1,1 +1,18 @@
-coming soon ...
+---
+layout: main
+title: Home
+---
+
+<div>
+	<p>Writeups des différents CTF</p>
+</div>
+
+<div class="blog">
+    <ul style="list-style: none;">
+        {% for post in site.posts %}
+        <li>
+            <a href="{{ post.url }}">{{ post.category | replace:'-',' ' }} / {{ post.title }}</a>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
