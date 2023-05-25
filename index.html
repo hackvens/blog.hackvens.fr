@@ -8,11 +8,24 @@ title: Home
 </div>
 
 <div class="blog">
-    <ul style="list-style: none;">
+    {% for category in site.categories %}
+    <details open="open">
+        <summary>{{ category[0] | replace:'-',' ' | capitalize }}</summary>
+        <ul style="list-style: none;">
+            {% for post in category[1] %}
+            <li>
+                <a href="{{ post.url }}">{{ post.title }}</a>
+            </li>
+            {% endfor %}
+        </ul>
+    </details>
+    {% endfor %}
+
+    <!-- <ul style="list-style: none;">
         {% for post in site.posts %}
         <li>
             <a href="{{ post.url }}">{{ post.category | replace:'-',' ' }} / {{ post.title }}</a>
         </li>
         {% endfor %}
-    </ul>
+    </ul> -->
 </div>
