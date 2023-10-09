@@ -42,7 +42,7 @@ notamment d’élever ses privilèges sur les versions les plus récentes de
 “Windows 10” et “Windows Server 2022”, à date de l’article.
 
 <img src="/assets/img/articles/coercedpotato/image1.png"
-style="width:6.3in;height:5.26389in"
+style="width:6.3in;height:5.26389in; display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, capture d’écran, Police Description générée automatiquement" />
 
 Notez que nous parlons de « nouvel outil » et non pas « nouvelle
@@ -70,7 +70,7 @@ suivante : nous exécutons des commandes dans le contexte de sécurité de
 l’utilisateur **NT AUTHORITY\LOCAL SERVICE**.
 
 <img src="/assets/img/articles/coercedpotato/image2.png"
-style="width:3.88203in;height:0.98002in"
+style="width:3.88203in;height:0.98002in; display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, capture d’écran, Police, ligne Description générée automatiquement" />
 
 Ce compte dispose de privilèges restreints sur le système. L’objectif
@@ -87,7 +87,7 @@ l’utilisateur **NT AUTHORITY\LOCAL SERVICE**, celui-ci dispose
 normalement du privilège **SeImpersonatePrivilege** :
 
 <img src="/assets/img/articles/coercedpotato/image3.png"
-style="width:6.3in;height:1.77431in"
+style="width:6.3in;height:1.77431in; display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, capture d’écran, Police Description générée automatiquement" />
 
 C’est ce privilège qui nous intéresse tout particulièrement pour la
@@ -139,9 +139,9 @@ retrouver la définition des fonctions énoncées plus tôt :
 ces fonctions est la suivante :
 
 <img src="/assets/img/articles/coercedpotato/image4.png"
-style="width:3.11927in;height:2.16522in"
+style="width:3.11927in;height:2.16522in;display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, capture d’écran, nombre, Police Description générée automatiquement" /><img src="/assets/img/articles/coercedpotato/image5.png"
-style="width:2.90177in;height:2.13404in"
+style="width:2.90177in;height:2.13404in;display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, capture d’écran, Police, nombre Description générée automatiquement" />
 
 Il est intéressant de noter que ces deux fonctions nécessitent un
@@ -224,7 +224,7 @@ Il existe en fait un autre moyen pour aboutir au même résultat :
 l’utilisation de « Named Pipe ».
 
 <img src="/assets/img/articles/coercedpotato/image6.jpg"
-style="width:1.76563in;height:1.10352in"
+style="width:1.76563in;height:1.10352in;display:block; margin-left:auto; margin-right:auto"
 alt="René Magritte - Ceci n&#39;est pas une pipe - Museum TV" />
 
 D’après la documentation de Microsoft, un *« pipe est une section de
@@ -269,7 +269,7 @@ Typiquement, dans l’exemple ci-dessous, nous créons un serveur pipe
 accessible via le Named Pipe **\\.\pipe\mynamedpipe**.
 
 <img src="/assets/img/articles/coercedpotato/image7.png"
-style="width:5.72917in;height:0.31944in" />
+style="width:5.72917in;height:0.31944in;display:block; margin-left:auto; margin-right:auto" />
 
 Puis, lorsqu’un utilisateur se connecte à ce serveur pipe, nous
 récupérons les informations liées à son **access token**. Dans l’exemple
@@ -277,7 +277,7 @@ ci-dessous, nous nous connectons au serveur pipe avec l’utilisateur
 **lab\advens**.
 
 <img src="/assets/img/articles/coercedpotato/image8.png"
-style="width:6.3in;height:3.51944in" />
+style="width:6.3in;height:3.51944in;display:block; margin-left:auto; margin-right:auto" />
 
 Donc, pour résumer, si nous disposons les privilèges requis et parvenons
 à forcer l’utilisateur **NT AUTHORITY\SYSTEM** à s’authentifier sur un
@@ -373,9 +373,6 @@ remontées par @P0dalirius.
 Notre outil a ainsi pour vocation de regrouper toutes les méthodes de
 coercition en local permettant une élévation de privilèges à partir des
 privilèges **SeImpersonatePrivilege** et **SeAssignPrimaryToken**.
-
-**  
-**
 
 # **Un peu de code maintenant (C++ on fire) !**
 
@@ -498,7 +495,7 @@ documentation officielle.
 <https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-efsr/4a25b8e1-fd90-41b6-9301-62ed71334436>
 
 <img src="/assets/img/articles/coercedpotato/image9.png"
-style="width:6.3in;height:4.57222in"
+style="width:6.3in;height:4.57222in;display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, capture d’écran, Police Description générée automatiquement" />
 
 Il suffit donc de copier-coller le contenu de l’IDL dans un fichier .idl
@@ -507,7 +504,7 @@ les problèmes de typages,nous avons fini par trouver une solution plutôt simpl
 Voici notre recette :
 
 -   <img src="/assets/img/articles/coercedpotato/image10.jpeg"
-    style="width:0.18056in;height:0.19861in"
+    style="width:0.18056in;height:0.19861in;display:block; margin-left:auto; margin-right:auto"
     alt="Une image contenant Visage humain, personne, habits, Humain Description générée automatiquement" />Une
     fois le contenu du fichier IDL récupéré et collé dans un fichier,
     retirer la ligne **import "ms-dtyp.idl";**. Garder cette ligne
@@ -518,7 +515,7 @@ Voici notre recette :
     de types.
 
 <img src="/assets/img/articles/coercedpotato/image11.png"
-style="width:4.59259in;height:1.03526in"
+style="width:4.59259in;height:1.03526in;display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, capture d’écran, Police, logiciel Description générée automatiquement" />
 
 -   En fonction de ce qui est remonté, ajouter la définition en début de
@@ -527,7 +524,7 @@ alt="Une image contenant texte, capture d’écran, Police, logiciel Description
 <https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/24637f2d-238b-4d22-b44d-fe54b024280c>
 
 <img src="/assets/img/articles/coercedpotato/image12.png"
-style="width:3.42587in;height:1.67593in"
+style="width:3.42587in;height:1.67593in;display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, capture d’écran, Police, algèbre Description générée automatiquement" />
 
 -   Continuer ces deux dernières étapes jusqu’à ce que la compilation
@@ -541,7 +538,7 @@ Ces fichiers implémentent donc toutes les fonctions RPC de l’interface
 **MS-EFSR** :
 
 <img src="/assets/img/articles/coercedpotato/image13.png"
-style="width:3.84466in;height:1.44062in"
+style="width:3.84466in;height:1.44062in;display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, capture d’écran, Police, affichage Description générée automatiquement" />
 
 Il ne nous reste plus qu’à l’appeler ! Personnellement, le C et le C++,
@@ -552,7 +549,7 @@ Nous allons donc lui demander de nous fournir le code permettant d’initialiser
 correctement chaque paramètre pour chaque fonction.
 
 <img src="/assets/img/articles/coercedpotato/image14.png"
-style="width:5.76096in;height:3.65648in"
+style="width:5.76096in;height:3.65648in;display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, Appareils électroniques, capture d’écran, logiciel Description générée automatiquement" />
 
 Et voilà ! Toutes les fonctions sont implémentées ! Il ne reste plus
@@ -595,23 +592,23 @@ système Windows, une requête est effectuée sur le fichier
 par le compte **NT AUTHORITY\SYSTEM**.
 
 <img src="/assets/img/articles/coercedpotato/image15.png"
-style="width:5.87746in;height:0.48827in"
+style="width:5.87746in;height:0.48827in;display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant capture d’écran, texte, logiciel, Logiciel multimédia Description générée automatiquement" /><img src="/assets/img/articles/coercedpotato/image15.png"
-style="width:5.896in;height:0.69375in"
+style="width:5.896in;height:0.69375in;display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant capture d’écran, texte, logiciel, Logiciel multimédia Description générée automatiquement" />
 
 Grâce à notre serveur pipe, nous récupérons l’authentification et nous lançons 
 un nouveau processus “cmd.exe” !
 
 <img src="/assets/img/articles/coercedpotato/image16.png"
-style="width:6.3in;height:1.77292in"
+style="width:6.3in;height:1.77292in;display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, capture d’écran, Police, logiciel Description générée automatiquement" />
 
 That is all folks 😊. Et en prime, un petit schéma récapitulatif de
 l’attaque !
 
 <img src="/assets/img/articles/coercedpotato/image17.png"
-style="width:5.94589in;height:4.68903in" />
+style="width:5.94589in;height:4.68903in;display:block; margin-left:auto; margin-right:auto" />
 
 ## Finalement, CoercedPotato ! 
 
@@ -623,7 +620,7 @@ Ainsi, il est possible de choisir de manière précise quelle fonction RPC
 utiliser, ou de toutes les forcer afin d’en trouver une valide.
 
 <img src="/assets/img/articles/coercedpotato/image18.png"
-style="width:6.3in;height:3.64444in"
+style="width:6.3in;height:3.64444in;display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, capture d’écran, Police, conception Description générée automatiquement" />
 
 A date de l’article, seules les interfaces suivantes sont exploitables :
@@ -666,7 +663,7 @@ processus **svchost.exe** dans le contexte de sécurité de l’utilisateur
 de privilèges limités.
 
 <img src="/assets/img/articles/coercedpotato/image19.png"
-style="width:4.21781in;height:2.01062in"
+style="width:4.21781in;height:2.01062in;display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, capture d’écran, affichage, nombre Description générée automatiquement" />
 
 Par conséquent, forcer ce processus à effectuer une authentification sur
@@ -675,7 +672,7 @@ quête d’élévation de privilèges, puisque nous récupérons une connexion d
 compte **NT AUTHORITY\LOCAL SERVICE**.
 
 <img src="/assets/img/articles/coercedpotato/image20.png"
-style="width:6.3in;height:2.06736in"
+style="width:6.3in;height:2.06736in;display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, logiciel, Police, Page web Description générée automatiquement" />
 
 **Toutes les fonctions RPC des interfaces RPC implémentées par des
@@ -690,7 +687,7 @@ Prenons l’une de ses fonctions RPC telles que définies dans la
 documentation Microsoft : **NetrFileGetInfo()**.
 
 <img src="/assets/img/articles/coercedpotato/image21.png"
-style="width:6.3in;height:2.21319in"
+style="width:6.3in;height:2.21319in;display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, Police, capture d’écran, blanc Description générée automatiquement" />
 
 Elle prend en paramètre 4 variables : **ServerName**, soit l’adresse
@@ -732,7 +729,7 @@ le named pipe est effectuée par l’utilisateur qui a lancé l’outil, soit
 nous-mêmes.
 
 <img src="/assets/img/articles/coercedpotato/image22.png"
-style="width:5.94024in;height:1.84105in"
+style="width:5.94024in;height:1.84105in;display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, logiciel, Page web, Icône d’ordinateur Description générée automatiquement" />
 
 Exploiter cette fonction en indiquant un emplacement sur le réseau
@@ -744,7 +741,7 @@ Pour finir l’illustration de nos propos, continuons maintenant avec la
 fonction **NetrpGetFileSecurity()**.
 
 <img src="/assets/img/articles/coercedpotato/image23.png"
-style="width:5.63841in;height:1.86533in"
+style="width:5.63841in;height:1.86533in;display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, capture d’écran, Police, blanc Description générée automatiquement" />
 
 Le code suivant a été utilisé :
@@ -786,7 +783,7 @@ d’une requête par l’utilisateur **NT AUTHORITY\SYSTEM**. Petit bémol :
 le chemin indiqué correspond à un chemin de fichier absolu…
 
 <img src="/assets/img/articles/coercedpotato/image24.png"
-style="width:5.86999in;height:1.76867in"
+style="width:5.86999in;height:1.76867in;display:block; margin-left:auto; margin-right:auto"
 alt="Une image contenant texte, logiciel, Page web, Icône d’ordinateur Description générée automatiquement" />
 
 Cette fonction ne peut donc pas être utilisée pour élever nos privilèges
@@ -804,7 +801,7 @@ mesure où leurs comportements sont considérés comme « légitimes » par
 Microsoft.
 
 Vous retrouvez le code de l’outil ici :
-[<span class="mark">https://github.com/hackvens/CoercedPotato</span>](https://github.com/hackvens/CoercedPotato).
+[<span>https://github.com/hackvens/CoercedPotato</span>](https://github.com/hackvens/CoercedPotato).
 
 Notre PoC a été testé sur Windows 10, Windows Server 2016, Windows
 Server 2022 et Windows 11 ! 🥳
