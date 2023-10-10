@@ -34,7 +34,7 @@ Windows)***.***
 L’objectif de cet article n’est pas de passer en revue la collection
 « Potatoes » disponible à ce jour. Pour cela, l’excellent article de
 @Blackwasp est disponible à l’URL suivant :
-<https://hideandsec.sh/books/windows-sNL/page/in-the-potato-family-i-want-them-all.>
+<https://hideandsec.sh/books/windows-sNL/page/in-the-potato-family-i-want-them-all>
 
 En revanche, la combinaison de plusieurs concepts connus a permis la
 création d’un nouvel outil : « **CoercedPotato** ». Cet outil permet
