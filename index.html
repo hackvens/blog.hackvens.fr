@@ -8,17 +8,52 @@ title: Home
 </div>
 
 <div class="blog">
+    <h2>Advisories</h2>
+    {% for category in site.categories%}
+        {% if category == 'advisories'%}
+        <details open="open">
+            <ul style="list-style: none;">
+                {% for post in category[1] %}
+                <li>
+                    <a href="{{ post.url }}">{{ post.title }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </details>
+        {% endif %}
+    {% endfor %}
+
+
+    <h2>Articles</h2>
+    {% for category in site.categories%}
+        {% if category == 'articles' %}
+            <details open="open">
+                <summary>{{ category[0] | replace:'-',' ' | capitalize }}</summary>
+                <ul style="list-style: none;">
+                    {% for post in category[1] %}
+                    <li>
+                        <a href="{{ post.url }}">{{ post.title }}</a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </details>
+        {% endif %}
+    {% endfor %}
+
+    <h2>Writeups</h2>
     {% for category in site.categories %}
-    <details open="open">
-        <summary>{{ category[0] | replace:'-',' ' | capitalize }}</summary>
-        <ul style="list-style: none;">
-            {% for post in category[1] %}
-            <li>
-                <a href="{{ post.url }}">{{ post.title }}</a>
-            </li>
-            {% endfor %}
-        </ul>
-    </details>
+        {% if category != 'articles' and category!='advisories' %}
+        <details open="open">
+            <summary>{{ category[0] | replace:'-',' ' | capitalize }}</summary>
+            <ul style="list-style: none;">
+                {% for post in category[1] %}
+                <li>
+                    <a href="{{ post.url }}">{{ post.title }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </details>
+        {% endif %}
     {% endfor %}
 
     <!-- <ul style="list-style: none;">
