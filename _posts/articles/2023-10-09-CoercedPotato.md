@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Coerced Potato
-category: Articles
+category: articles
 ---
 
 **CoercedPotato - Une patate de plus ! 🥔**
