@@ -3,15 +3,13 @@ layout: main
 title: Home
 ---
 
-<div>
-	<p>Writeups des différents CTF</p>
-</div>
-
 <div class="blog">
     <h2>Advisories</h2>
-    {% for category in site.categories%}
-        {% if category == 'advisories'%}
-        <details open="open">
+    <div>
+        <p>Vulnérabilités découvertes par nos équipes</p>
+    </div>
+    {% for category in site.categories %}
+        {% if category[0] == 'advisories' %}
             <ul style="list-style: none;">
                 {% for post in category[1] %}
                 <li>
@@ -19,31 +17,32 @@ title: Home
                 </li>
                 {% endfor %}
             </ul>
-        </details>
         {% endif %}
     {% endfor %}
 
-
     <h2>Articles</h2>
+    <div>
+        <p>Outils, découvertes et conférences</p>
+    </div>
     {% for category in site.categories%}
-        {% if category == 'articles' %}
-            <details open="open">
-                <summary>{{ category[0] | replace:'-',' ' | capitalize }}</summary>
-                <ul style="list-style: none;">
-                    {% for post in category[1] %}
-                    <li>
-                        <a href="{{ post.url }}">{{ post.title }}</a>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </details>
+        {% if category[0] == 'articles' %}
+            <ul style="list-style: none;">
+                {% for post in category[1] %}
+                <li>
+                    <a href="{{ post.url }}">{{ post.title }}</a>
+                </li>
+                {% endfor %}
+            </ul>
         {% endif %}
     {% endfor %}
 
     <h2>Writeups</h2>
+    <div>
+        <p>Writeups des différents CTF</p>
+    </div>
     {% for category in site.categories %}
-        {% if category != 'articles' and category!='advisories' %}
-        <details open="open">
+        {% if category[0] != 'articles' and category[0]!='advisories' %}
+        <details>
             <summary>{{ category[0] | replace:'-',' ' | capitalize }}</summary>
             <ul style="list-style: none;">
                 {% for post in category[1] %}
