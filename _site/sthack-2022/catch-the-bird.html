@@ -1,0 +1,200 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catch the bird</title>
+<link rel="stylesheet" href="/assets/css/styles.css">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">
+
+    <link rel="stylesheet" type="text/css" href="/assets/css/monokai.css">
+  </head>
+  <body data-bs-theme="dark">
+    <header class="d-flex py-3 mb-4 border-bottom" style="align-items: center; justify-content: space-around;">
+    <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
+      <span class="fs-4"><span class="logo1">Hack</span><span class="logo2">vens</span></span>
+    </a>
+    <button id="btnSwitch" class="">💡/🌙</button>
+    <script defer="defer">
+      document.getElementById('btnSwitch').addEventListener('click',()=>{
+      if (document.body.getAttribute('data-bs-theme') == 'dark') {
+          document.body.setAttribute('data-bs-theme','light')
+          document.documentElement.style.setProperty("--logo-color1", "#161616")
+      }
+      else {
+          document.body.setAttribute('data-bs-theme','dark')
+          document.documentElement.style.setProperty("--logo-color1", "#fff")
+
+      }
+      })
+    </script>
+  </header>
+    <div class="container">
+     <div class="post">
+    <div class="post__back">
+    	<a href="/">&lt;-- home</a>
+    </div>
+    <div class="post__title">
+    	<h1>Sthack 2022 / Catch the bird</h1>
+	<i>May 20, 2022</i>
+    </div>
+    <div class="post__meta">
+    	<p></p>
+    </div>
+    <div class="post__content"?>
+        <h1 id="sthack-2022">STHACK 2022</h1>
+
+<h2 id="épreuve-catch-the-bird-a-trip-from-web-to-irl">Épreuve “Catch the bird, a trip from web to IRL”</h2>
+
+<p>Le 20/05/2022</p>
+
+<p>Cette épreuve indiquée dans la catégorie web et physique a intrigué notre équipe qui s’est penchée dessus durant plus de 5h.</p>
+
+<p>En prémisse de cette épreuve, nous avons pour énoncé un scénario entre deux personnages ainsi qu’une carte postale avec un but précis, mettre la main sur une statuette d’oiseau:</p>
+
+<p><img src="/assets/img/sthack2022/catch-the-bird/1.png" alt="img" class="img-responsive smallpict" /></p>
+
+<h3 id="ecoute-radio">Ecoute radio</h3>
+
+<p>Les termes “Marconi” et “Guglielmo” étant soulignés, nous découvrons qu’ils font référence à l’un des précurseurs de la radio. Le numéro de rue “101.10” semble nous inviter à écouter sur cette fréquence FM. Nous devons donc nous munir d’un téléphone ainsi que d’écouteurs filaires pour écouter un message diffusé en boucle.</p>
+
+<p>L’orateur utilise l’alphabet phonétique pour transmettre son message.</p>
+
+<p><img src="/assets/img/sthack2022/catch-the-bird/2.jpg" alt="image-20220602100444065" class="img-responsive smallpict" /></p>
+
+<p>Nous obtenons alors le lien suivant:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>STHACKMDBIDWKYEBHKLNFNWMQHJ3OXNKE5INYLZRTWZENR752TN77OAD.ONION
+</code></pre></div></div>
+
+<h3 id="accès-au-compte-adminsitrateur">Accès au compte adminsitrateur</h3>
+
+<p>Via le navigateur Tor, nous arrivons sur ce qui semble être un marché du darknet, nous y retrouvons la statuette d’oiseau dans la liste des articles vendus:</p>
+
+<p><img src="/assets/img/sthack2022/catch-the-bird/3.png" alt="img" class="img-responsive smallpict" /></p>
+
+<p>Une page nous indique que nous devons trouver le moyen d’effectuer un achat afin d’obtenir des coordonnées GPS. Cependant, afin d’effectuer une commande nous devons être authentifiés, l’administrateur est indiqué comme étant très pointilleux.</p>
+
+<p>Nous découvrons une interface d’authentification au compte d’administration. Nous cherchons donc à usurper l’identité de cet administrateur.</p>
+
+<p><img src="/assets/img/sthack2022/catch-the-bird/4.png" alt="img" class="img-responsive smallpict" /></p>
+
+<p>La page de login suivante divulgue un message d’erreur en base64 lorsque la tentative d’authentification n’est pas correcte.</p>
+
+<p>Nous obtenons l’erreur suivante une fois le message déchiffré :</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">An</span> <span class="n">exception</span> <span class="n">occured</span> <span class="n">on</span> <span class="n">line</span> <span class="mi">31</span> <span class="n">of</span> <span class="o">/</span><span class="n">www</span><span class="o">/</span><span class="n">src</span><span class="o">/</span><span class="nc">Controller</span><span class="o">/</span><span class="nc">LoginController</span><span class="mf">.</span><span class="n">php</span> <span class="o">---</span> <span class="nc">Invalid</span> <span class="n">password</span><span class="mf">.</span> <span class="o">---</span>
+
+                <span class="k">return</span> <span class="nv">$this</span><span class="o">-&gt;</span><span class="nf">render</span><span class="p">(</span><span class="s1">'login/index.html.twig'</span><span class="p">,</span> <span class="p">[</span>
+                    <span class="s1">'controller_name'</span> <span class="o">=&gt;</span> <span class="s1">'LoginController'</span><span class="p">,</span>
+                <span class="p">]);</span>
+            <span class="p">}</span>
+            <span class="k">if</span> <span class="p">(</span><span class="nv">$request</span><span class="o">-&gt;</span><span class="n">request</span><span class="o">-&gt;</span><span class="nf">get</span><span class="p">(</span><span class="s1">'password'</span><span class="p">)</span> <span class="o">===</span> <span class="k">self</span><span class="o">::</span><span class="no">PASSWORD</span><span class="p">)</span>
+            <span class="p">{</span>
+                <span class="nv">$session</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Session</span><span class="p">();</span>
+                <span class="nv">$session</span><span class="o">-&gt;</span><span class="nf">set</span><span class="p">(</span><span class="s1">'is_admin'</span><span class="p">,</span> <span class="kc">true</span><span class="p">);</span>
+                <span class="k">return</span> <span class="nv">$this</span><span class="o">-&gt;</span><span class="nf">redirectToRoute</span><span class="p">(</span><span class="s1">'admin'</span><span class="p">);</span>
+            <span class="p">}</span> <span class="k">else</span> <span class="p">{</span> <span class="nb">sleep</span><span class="p">(</span><span class="nb">rand</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">5</span><span class="p">));</span> <span class="k">throw</span> <span class="k">new</span> <span class="nc">Exception</span><span class="p">(</span><span class="s1">'Invalid password.'</span><span class="p">);</span> <span class="p">}</span>
+        <span class="p">}</span>
+        <span class="c1">#[Route('/logout', name: 'app_admin_logout')]</span>
+        <span class="k">public</span> <span class="k">function</span> <span class="n">logout</span> <span class="p">(</span><span class="kt">Request</span> <span class="nv">$request</span><span class="p">):</span> <span class="kt">Response</span>
+        <span class="p">{</span>
+
+            <span class="nv">$session</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Session</span><span class="p">();</span>
+            <span class="nv">$session</span><span class="o">-&gt;</span><span class="nf">clear</span><span class="p">();</span>
+            <span class="k">return</span> <span class="nv">$this</span><span class="o">-&gt;</span><span class="nf">redirectToRoute</span><span class="p">(</span><span class="s1">'app_admin_login'</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p>Ici nous avons déduit qu’il fallait récupérer le contenu de la variable ‘self::PASSWORD’.</p>
+
+<p>Nous obtenons un autre morceau de code lié à une erreur au niveau de la page listant les articles:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>An exception occured on line 86 of /www/vendor/symfony/expression-language/Lexer.php --- Unexpected character "'" around position 0 for expression ' OR 1=1# &amp;&amp; true. ---
+
+                } elseif (str_contains('.,?:', $expression[$cursor])) {
+                    // punctuation
+                    $tokens[] = new Token(Token::PUNCTUATION_TYPE, $expression[$cursor], $cursor + 1);
+                    ++$cursor;
+                } elseif (pregmatch('/[a-zA-Z\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*/A', $expression, $match, 0, $cursor)) {
+                    // names
+                    $tokens[] = new Token(Token::NAME_TYPE, $match[0], $cursor + 1);
+                    $cursor += \strlen($match[0]);
+                } else {
+                    // unlexable
+                    throw new SyntaxError(sprintf('Unexpected character "%s".', $expression[$cursor]), $cursor, $expression);
+                }
+            }
+            $tokens[] = new Token(Token::EOF_TYPE, null, $cursor + 1);
+            if (!empty($brackets)) {
+                [$expect, $cur] = array_pop($brackets);
+                throw new SyntaxError(sprintf('Unclosed "%s".', $expect), $cur, $expression);
+            }
+</code></pre></div></div>
+
+<p>Nous remarquons la mention de “expression-language” dans le message de l’erreur ce qui nous pousse à consulter la documentation suivante :</p>
+
+<p>https://symfony.com/doc/current/components/expression_language/syntax.html#component-expression-functions</p>
+
+<p>La partie “Working with Functions” attire notre œil, car il semble possible de récupérer le contenu d’une variable via la fonction “constant()”. De plus, il est possible d’influencer le message d’erreur en jouant sur un paramètre POST. Une injection semble donc possible.</p>
+
+<p>Après quelques tentatives et à l’aide des messages d’erreurs, nous identifions le contexte lié à notre variable “self::PASSWORD”.</p>
+
+<p><img src="/assets/img/sthack2022/catch-the-bird/5.png" alt="img" class="img-responsive smallpict" /></p>
+
+<p>Nous avons donc “<strong>constant(‘App\Controller\LoginController::PASSWORD’)</strong>”.</p>
+
+<p>Néanmoins, après avoir récupéré le contenu du mot de passe administrateur nous devons trouver un moyen de l’afficher ou de le récupérer en clair.</p>
+
+<p>Nous utilisons alors une autre fonction basique de symfony : <strong>matches</strong> afin de vérifier les caractères un à un.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>constant('App\\Controller\\LoginController::PASSWORD') matches '/a*/'
+</code></pre></div></div>
+
+<p>Ce qui nous permet d’identifier manuellement le mot de passe comme étant : <strong>Ybhr5vmjJD</strong></p>
+
+<h3 id="récupérer-et-déchiffrement-dun-fichier">Récupérer et déchiffrement d’un fichier</h3>
+
+<p>Nous  accédons ensuite à la liste des ventes effectuées, et obtenons les éléments tant attendus, à savoir les coordonnées GPS du point où se trouvent un cadenas et une clé secrète.</p>
+
+<p><img src="/assets/img/sthack2022/catch-the-bird/6.png" alt="img" class="img-responsive smallpict" /></p>
+
+<p>Le point GPS nous emmène dans les jardins de la mairie de Bordeaux, où nous découvrons un cadenas verrouillé auquel est attaché une clé USB.</p>
+
+<p><img src="/assets/img/sthack2022/catch-the-bird/7.png" alt="img" class="img-responsive smallpict" /></p>
+
+<p>L’usage de compétence de lock-picking est utile pour récupérer la clé USB, cependant dans notre cas nous manquions de temps et avons déplacé directement notre pc afin de brancher la clé USB sans avoir besoin d’ouvrir le cadenas.</p>
+
+<p>Une fois le fichier récupéré, une simple commande permet de le déchiffrer à l’aide de la clé précédemment retrouvée lors de l’achat ci-dessus :</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>openssl enc -d -aes-256-cbc -in maltesefalcon.txt.aes256cbc -out file.dec
+</code></pre></div></div>
+
+<p>Nous obtenons alors un autre lien ONION:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>The auction will take place at the address : maltapyzyfnwvgkl4se7tlhlrohule77cgnaguy2nouxyvosovjldbyd.onion
+
+All bid will be made in $ only, you will be asked to provide an bank account address on auction start. You will only be able to bid up to this account available balance, so be sure to gather sufficients funds on this account before auction start.
+
+Auction admittance will start at 2022-05-23 20:00:00 UTC and entree will remain open up to 2022-05-23 20:15:00 UTC. Past that, nobody will be accepted and auctions will start.
+
+---------
+Falcon
+</code></pre></div></div>
+
+<h3 id="récupération-du-flag">Récupération du flag</h3>
+
+<p>La vente aux enchères semble commencer deux jours après la fin du CTF. En effet, un compte à rebours est présent sur la page d’accueil du nouveau site.</p>
+
+<p>Nous changeons donc la date de notre pc afin de réduire ce délai à 0. Ceci n’était pas la méthode désirée par le créateur du challenge, mais une méthode qui fonctionne tout de même. C’est ainsi que nous avons obtenu le flag et validé l’épreuve :</p>
+
+<p><img src="/assets/img/sthack2022/catch-the-bird/8.png" alt="img" class="img-responsive smallpict" /></p>
+
+<p><img src="/assets/img/sthack2022/catch-the-bird/9.png" alt="img" class="img-responsive smallpict" /></p>
+
+    </div>
+</div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,142 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Discretfi</title>
+<link rel="stylesheet" href="/assets/css/styles.css">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">
+
+    <link rel="stylesheet" type="text/css" href="/assets/css/monokai.css">
+  </head>
+  <body data-bs-theme="dark">
+    <header class="d-flex py-3 mb-4 border-bottom" style="align-items: center; justify-content: space-around;">
+    <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
+      <span class="fs-4"><span class="logo1">Hack</span><span class="logo2">vens</span></span>
+    </a>
+    <button id="btnSwitch" class="">💡/🌙</button>
+    <script defer="defer">
+      document.getElementById('btnSwitch').addEventListener('click',()=>{
+      if (document.body.getAttribute('data-bs-theme') == 'dark') {
+          document.body.setAttribute('data-bs-theme','light')
+          document.documentElement.style.setProperty("--logo-color1", "#161616")
+      }
+      else {
+          document.body.setAttribute('data-bs-theme','dark')
+          document.documentElement.style.setProperty("--logo-color1", "#fff")
+
+      }
+      })
+    </script>
+  </header>
+    <div class="container">
+     <div class="post">
+    <div class="post__back">
+    	<a href="/">&lt;-- home</a>
+    </div>
+    <div class="post__title">
+    	<h1>Barbhack 2023 / Discretfi</h1>
+	<i>August 26, 2023</i>
+    </div>
+    <div class="post__meta">
+    	<p></p>
+    </div>
+    <div class="post__content"?>
+        <h1 id="discretexfi">Discretexfi</h1>
+
+<p><strong>Catégorie :</strong> Forensic</p>
+
+<p><img src="/assets/img/barbhack2023/discretfi/enonce-discretexfi.png" alt="enonce" /></p>
+
+<p>Dans ce challenge nous récupérons un fichier pcap comportant des paquets réseaux capturé à un instant donné. Nous observons dans un premier temps du traffic TCP en grande quantité :</p>
+
+<p><img src="/assets/img/barbhack2023/discretfi/wireshark-full.png" alt="wireshark-full" /></p>
+
+<p>En filtrant sur les requêtes de type <code class="language-plaintext highlighter-rouge">GET</code> nous restreignons l’affichage aux éléments qui nous intéresses. Pour ce faire nous utilisons le filtre <code class="language-plaintext highlighter-rouge">http.request.method=="GET"</code>:</p>
+
+<p><img src="/assets/img/barbhack2023/discretfi/wireshark-filter.png" alt="wireshark-filter" /></p>
+
+<p>Nous notons la présence de 3 URL différents :</p>
+
+<ul>
+  <li>/newfile?f=secret.txt</li>
+  <li>/bit</li>
+  <li>/lastbits</li>
+</ul>
+
+<p>Cependant nous ne retrouvons pas d’élément faisant référence au flag que nous cherchons. La seul différence notable est la version d’HTTP utilisé qui change à chaque requête. Nous isolons puis convertissons cette information avec la commande suivante :</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>tshark <span class="nt">-r</span> Discretexfi.pcap <span class="nt">-Y</span> <span class="s1">'http.request.method == "GET"'</span> | <span class="nb">awk</span> <span class="nt">-F</span> <span class="s1">' '</span> <span class="s1">'{print $10}'</span> | <span class="nb">cut</span> <span class="nt">-d</span> <span class="s1">'.'</span> <span class="nt">-f</span> 2 | <span class="nb">sed</span> <span class="s1">':a;N;$!ba;s/\n//g; s/ //g'</span> | perl <span class="nt">-lpe</span> <span class="s1">'$_=pack"B*",$_'</span>
+</code></pre></div></div>
+
+<p>Si nous décomposons cette commande nous obtenons :</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">tshark -r Discretexfi.pcap -Y 'http.request.method == "GET"'</code> permet d’extraire les informations du fichier de capture avec le filtre utilisé sur wireshark.</li>
+</ul>
+
+<blockquote>
+  <p>122702  12.714845  192.168.0.2 → 192.168.0.10 HTTP 217 GET /bit HTTP/1.1 
+122712  12.715613  192.168.0.2 → 192.168.0.10 HTTP 217 GET /bit HTTP/1.1 
+122722  12.716368  192.168.0.2 → 192.168.0.10 HTTP 217 GET /bit HTTP/1.1 
+122732  12.717119  192.168.0.2 → 192.168.0.10 HTTP 217 GET /bit HTTP/1.0 
+122742  12.717882  192.168.0.2 → 192.168.0.10 HTTP 222 GET /lastbits HTTP/1.0</p>
+</blockquote>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">awk -F ' ' '{print $10}'</code> permet de n’extraire que le dernier champs, à savoir <strong>HTTP/1.1</strong> ou <strong>HTTP/1.0</strong>.</li>
+</ul>
+
+<blockquote>
+  <p>HTTP/1.1
+HTTP/1.1
+HTTP/1.1
+HTTP/1.0
+HTTP/1.0</p>
+</blockquote>
+
+<ul>
+  <li>
+    <p><code class="language-plaintext highlighter-rouge">cut -d '.' -f 2</code> permet de ne garder que le dernier chiffre de cette version, soit <strong>1</strong> ou <strong>0</strong>.</p>
+
+    <blockquote>
+      <p>1
+1
+1
+0
+0</p>
+    </blockquote>
+  </li>
+  <li>
+    <p><code class="language-plaintext highlighter-rouge">sed ':a;N;$!ba;s/\n//g; s/ //g'</code> permet de retirer les retours à la ligne</p>
+  </li>
+</ul>
+
+<blockquote>
+  <p>11100</p>
+</blockquote>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">perl -lpe '$_=pack"B*",$_'</code> permet de convertir la suite binaire en ascii</li>
+</ul>
+
+<p>Nous obtenons alors le résultat suivant :</p>
+
+<pre><code class="language-ascii">�0�9�6��4�2�9�22��2c�lices et des plaisirs gustatifs, se cache en moi une passion brûlante pour les bières. Derrière mon sourire et mes conversations animées, se trouve un amour profond et sincère pour cette boisson brassicole.
+La bière va bien au-delà d'une simple boisson pour moi. C'est une véritable expérience sensorielle, un voyage palpitant à travers les saveurs, les arômes et les textures. Chaque gorgée est une découverte, une exploration des possibilités infinies qu'offre le monde brassicole.
+J'adore me plonger dans la diversité des bières, partir à la recherche de nouvelles variétés, de brasseries artisanales et de créations audacieuses. Chaque bière est unique, racontant une histoire qui m'envoûte et me transporte vers de nouveaux horizons gustatifs.
+brb{hTTp_vErSi0n_iS_th3_W44444y}
+La dégustation de bière est un art que je chéris. Je savoure chaque gorgée, laissant la bière se répandre sur ma langue et révéler ses secrets. Les saveurs se déploient avec grâce, les notes fruitées, épicées ou maltées dansent dans ma bouche, m'invitant à explorer davantage.
+Mais ma passion pour les bières ne s'arrête pas à la dégustation. Je suis captivé par l'histoire et la culture brassicole, par les traditions et les techniques de brassage. Je m'imprègne de chaque détail, chaque anecdote qui entoure cette boisson millénaire, nourrissant ma soif de connaissances brassif����\
+</code></pre>
+
+<p>Dans l’ensemble de ce texte nous retrouvons le flag : <strong><code class="language-plaintext highlighter-rouge">brb{hTTp_vErSi0n_iS_th3_W44444y}</code></strong>.</p>
+
+
+    </div>
+</div>
+
+
+    </div>
+  </body>
+</html>

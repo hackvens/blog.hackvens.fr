@@ -1,0 +1,206 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Baby Octogone</title>
+<link rel="stylesheet" href="/assets/css/styles.css">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">
+
+    <link rel="stylesheet" type="text/css" href="/assets/css/monokai.css">
+  </head>
+  <body data-bs-theme="dark">
+    <header class="d-flex py-3 mb-4 border-bottom" style="align-items: center; justify-content: space-around;">
+    <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
+      <span class="fs-4"><span class="logo1">Hack</span><span class="logo2">vens</span></span>
+    </a>
+    <button id="btnSwitch" class="">💡/🌙</button>
+    <script defer="defer">
+      document.getElementById('btnSwitch').addEventListener('click',()=>{
+      if (document.body.getAttribute('data-bs-theme') == 'dark') {
+          document.body.setAttribute('data-bs-theme','light')
+          document.documentElement.style.setProperty("--logo-color1", "#161616")
+      }
+      else {
+          document.body.setAttribute('data-bs-theme','dark')
+          document.documentElement.style.setProperty("--logo-color1", "#fff")
+
+      }
+      })
+    </script>
+  </header>
+    <div class="container">
+     <div class="post">
+    <div class="post__back">
+    	<a href="/">&lt;-- home</a>
+    </div>
+    <div class="post__title">
+    	<h1>Sthack 2021 / Baby Octogone</h1>
+	<i>October 15, 2021</i>
+    </div>
+    <div class="post__meta">
+    	<p></p>
+    </div>
+    <div class="post__content"?>
+        <h2 id="1---the-challenge">1 - The challenge</h2>
+
+<p>The challenge consists of a <code class="language-plaintext highlighter-rouge">baby_octogone.elf</code> file to download and that’s it!</p>
+
+<h2 id="2---the-basics">2 - The basics</h2>
+
+<p>First let’s get some informations about the file</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>file baby_octogone.elf
+readelf <span class="nt">-a</span> baby_octogone.elf
+binwalk baby_octogone.elf
+</code></pre></div></div>
+
+<p>Here is a little summary of the most important informations :</p>
+
+<ul>
+  <li>ELF 32-bit LSB executable</li>
+  <li>QUALCOMM DSP6 Processor</li>
+  <li>statically linked</li>
+  <li>little endian</li>
+</ul>
+
+<p>Let’s use <code class="language-plaintext highlighter-rouge">strings</code> to see if we get something:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>...
+RUsage: %s &lt;secret0&gt; &lt;secret1&gt;
+[!] Well done, the flag is: STHACK{ %s%s}
+[!] Noooope
+Invalid command Line string!
+...
+</code></pre></div></div>
+
+<p>It looks like we will have to reverse two secrets that will give us the flag.
+Maybe a simple concatenation of the secrets will do the job?
+We will see.</p>
+
+<h2 id="3---getting-to-know-the-processor-architecture">3 - Getting to know the processor architecture</h2>
+
+<p>The first thing I read was the <a href="https://en.wikipedia.org/wiki/Qualcomm_Hexagon">Wikipedia page</a>.
+In the sources we can find some valuable informations about the way the processor works.
+For example this short <a href="http://pages.cs.wisc.edu/~danav/pubs/qcom/hexagon_hotchips2013.pdf">presentation</a>.</p>
+
+<p>Now that we have a global idea of how the processor works let’s check the
+<a href="https://developer.qualcomm.com/software/hexagon-dsp-sdk/tools">technical documentation given by the editor</a>.</p>
+
+<p>The <a href="https://developer.qualcomm.com/qfile/67417/80-n2040-45_b_qualcomm_hexagon_v67_programmer_reference_manual.pdf">Qualcomm Hexagon V67 Programmer’s Reference Manual</a>
+is quite a good start to understant the basics for the next reverse step.
+Let’s take some time to quickly read it and get the basics of the assembly language.</p>
+
+<h2 id="4---the-reverse">4 - The reverse</h2>
+
+<h3 id="41---what-tools-to-use">4.1 - What tools to use</h3>
+
+<p>I tried to find a way to emulate the processor but I was not able to have something
+to work within the time constraints.</p>
+
+<p>It looks like we will have to do a complete static analysis.</p>
+
+<p>After some trial and error with the Cutter configuration I was able to get a proper disassembly.</p>
+
+<h3 id="42---the-main-function">4.2 - The main function</h3>
+
+<p><em>Note: The screenshots contains the already renamed functions because they were taken after the end of the CTF.</em></p>
+
+<p>The are no available symbols so we will need to do some checks by hand.
+Maybe finding the function that refers tu the usage string we found earlier ?</p>
+
+<p><img src="/assets/img/sthack2021/main_graph.png" alt="Cutter graph of the main function" class="img-responsive smallpict" /></p>
+
+<p>Bingo !
+We can also see the main condition calling the format string giving us the flag and
+the “Noooope”.</p>
+
+<p>After a quick analysis, we rename the functions as we think they might work.</p>
+
+<p><em>NOTE: I renamed the functions “maybe_check_secret_1” and “maybe_check_secret_2” instead of 0 and 1. It was late.</em></p>
+
+<h3 id="43---maybe_check_secret_1">4.3 - maybe_check_secret_1</h3>
+
+<p>This function is quite simple, it is a simple string length check and some xor.</p>
+
+<p><img src="/assets/img/sthack2021/maybe_check_secret_1_graph.png" alt="Cutter graph of the maybe_check_secret_1 function" class="img-responsive smallpict" /></p>
+
+<p>Let’s decrypt the first secret:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>xor 1732584193 153835079 = 1852732742   = 0x6e6e7546 (nnuF)
+xor -271733879 -1618021168 = 1883463513 = 0x70435f59 (pC_Y)
+xor -1732584194 -359758933 = 1916034901 = 0x72345f55 (r4_U)
+xor 271733878 956840981 = 691693667     = 0x293a6863 ():hc)
+
+===&gt; FunnY_CpU_4rch:)
+</code></pre></div></div>
+
+<h3 id="44---maybe_check_secret_2">4.4 - maybe_check_secret_2</h3>
+
+<p>This one had me think a bit more.</p>
+
+<p><img src="/assets/img/sthack2021/maybe_check_secret_2_graph.png" alt="Cutter graph of the maybe_check_secret_2 function" class="img-responsive smallpict" /></p>
+
+<p>To put it in a nutshell, the function:</p>
+<ul>
+  <li>iterate over the given string AND a data stored in memory at address <code class="language-plaintext highlighter-rouge">50472</code></li>
+  <li>stores in R2 the byte that is stored in memory at address <code class="language-plaintext highlighter-rouge">50216 + the value of the current char</code></li>
+  <li>stores in R3 the byre that stored in memory at address <code class="language-plaintext highlighter-rouge">50472 + iteration number</code></li>
+  <li>compares R2 and R3</li>
+  <li>continues if they are equals</li>
+</ul>
+
+<p>Because some values appears multiple times in the memory space used to get R2’s value
+we might have multiple combinations possible.
+To get the secret I simply copied the memory spaces used in hexadecimal and
+made a python script that gives me the possible combinations.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">hex_str</span> <span class="o">=</span> <span class="s">'5ef1799f18f8b3c641a0a88e8dbeef273c771b96d986838eca043ce9f808bf05b06edde1a4097db775189eed6566e068662c09142fab72dc565c3648f1f34f9e9a2f0800b05c49bfdc6691156f358bcc83351263f578abb0d687b6042f80ab9b63c18d458a5b5cede91d89e7af31596746a6604cf134da7a961cfc8737f0604c91a9635e5873141ae22995a27c9bf6b08f515d6e5c470a380f7e468edf0ff5122f88debc2e396605a8a267cbc055e18e008d98b367ec8a635c7a760f244777eadd45ceceffcd5b70498a3f9982ffb6ff398005f378d411cb6d4ce7bc4658803584b49fe2000c75ef3a257fa23544a45b1a9eb779d88c042585d569ba66901847'</span>
+
+<span class="n">hex_ref</span> <span class="o">=</span> <span class="s">'2f598a9b5bc14c1c9b45e92fafaf6e'</span>
+
+<span class="n">mem</span> <span class="o">=</span> <span class="nb">bytes</span><span class="p">.</span><span class="n">fromhex</span><span class="p">(</span><span class="n">hex_str</span><span class="p">)</span>
+<span class="n">ref</span> <span class="o">=</span> <span class="nb">bytes</span><span class="p">.</span><span class="n">fromhex</span><span class="p">(</span><span class="n">hex_ref</span><span class="p">)</span>
+
+<span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
+
+<span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">ref</span><span class="p">:</span>
+    <span class="n">tmp</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">127</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">r</span> <span class="o">==</span> <span class="n">mem</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span>
+            <span class="n">tmp</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="nb">chr</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+    <span class="n">out</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="n">tmp</span><span class="p">)</span>
+
+<span class="k">print</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>Here are all the possibilities:</p>
+<ul>
+  <li>4nd_easy_ch4ll!</li>
+  <li>And_easy_chAll!</li>
+  <li>4nd_easy_chAll!</li>
+  <li>And_easy_ch4ll!</li>
+</ul>
+
+<h3 id="45---build-the-flag">4.5 - Build the flag</h3>
+
+<p>Because of the second secret’s results they were 4 possibilities :</p>
+<ul>
+  <li>STHACK{FunnY_CpU_4rch:)4nd_easy_ch4ll!}</li>
+  <li>STHACK{FunnY_CpU_4rch:)And_easy_chAll!}</li>
+  <li>STHACK{FunnY_CpU_4rch:)4nd_easy_chAll!}</li>
+  <li>STHACK{FunnY_CpU_4rch:)And_easy_ch4ll!}</li>
+</ul>
+
+<p>I assume all of them are valid but I only tried the first one.</p>
+
+<p>I hope you enjoyed :)</p>
+
+<p><strong><em>Author: Hugo SOSZYNSKI</em></strong></p>
+
+    </div>
+</div>
+
+
+    </div>
+  </body>
+</html>

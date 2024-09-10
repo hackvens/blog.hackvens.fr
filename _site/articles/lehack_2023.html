@@ -1,0 +1,189 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Le hack 2023</title>
+<link rel="stylesheet" href="/assets/css/styles.css">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">
+
+    <link rel="stylesheet" type="text/css" href="/assets/css/monokai.css">
+  </head>
+  <body data-bs-theme="dark">
+    <header class="d-flex py-3 mb-4 border-bottom" style="align-items: center; justify-content: space-around;">
+    <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
+      <span class="fs-4"><span class="logo1">Hack</span><span class="logo2">vens</span></span>
+    </a>
+    <button id="btnSwitch" class="">💡/🌙</button>
+    <script defer="defer">
+      document.getElementById('btnSwitch').addEventListener('click',()=>{
+      if (document.body.getAttribute('data-bs-theme') == 'dark') {
+          document.body.setAttribute('data-bs-theme','light')
+          document.documentElement.style.setProperty("--logo-color1", "#161616")
+      }
+      else {
+          document.body.setAttribute('data-bs-theme','dark')
+          document.documentElement.style.setProperty("--logo-color1", "#fff")
+
+      }
+      })
+    </script>
+  </header>
+    <div class="container">
+     <div class="post">
+    <div class="post__back">
+    	<a href="/">&lt;-- home</a>
+    </div>
+    <div class="post__title">
+    	<h1>Articles / Le hack 2023</h1>
+	<i>June 30, 2023</i>
+    </div>
+    <div class="post__meta">
+    	<p></p>
+    </div>
+    <div class="post__content"?>
+        <h1 id="advens-à-lévènement-lehack-2023">Advens à l’évènement LeHack 2023</h1>
+
+<p>Cette année encore, notre Redteam était au rendez-vous pour assister à l’évènement LeHack.</p>
+
+<p>Existant depuis 2001 (auparavant nommée “Nuit du Hack” jusqu’en 2019), cette convention propose de réunir les passionnés de sécurité informatique autour de divers stands d’entreprises du secteur mais aussi des associations et écoles spécialisées.</p>
+
+<p>Des conférences techniques ont lieu tout au long de l’évènement et laissent divers intervenants présenter les résultats de leurs sujets de recherche dont voici quelques résumés :</p>
+
+<p><br /></p>
+
+<h2 id="conférence-du-driver-windows-à-ledr-par-aurélien-chalot">Conférence “Du Driver Windows à l’EDR” par <a href="https://twitter.com/Defte_">Aurélien CHALOT</a></h2>
+
+<p><em>De nos jours, pour détecter les malwares, les antivirus reposent principalement sur l’analyse dynamique. Pour étudier le comportement d’un malware, il est nécessaire que les solutions d’antivirus aient le moyen d’intercepter ses actions. Pour cela, Microsoft a ajouté au sein de l’OS Windows ce que l’on appelle des kernel callbacks. Ces kernels callbacks sont en fait des fonctions de l’API Windows qui permettent, moyennant un niveau de privilège fort, d’intercepter les actions d’un malware. Pour avoir les privilèges suffisants, il est nécessaire que ces fonctions soient utilisées par un certain type de composant : les drivers.</em></p>
+
+<p>Source : <a href="https://lehack.org/fr/track/du-driver-windows-a-ledr/">https://lehack.org/fr/track/du-driver-windows-a-ledr/</a></p>
+
+<p>Lors de cette conférence, Aurélien a retracé l’historique des divers moyens utilisés au cours des dernières décennies pour protéger nos systèmes contre les logiciels malveillants. La technicité et l’innovation des attaquants évoluant au rythme asynchrone des évolutions techniques permettant de repérer ces derniers, nous en sommes alors à l’époque des EDR (Endpoint detection and response).</p>
+
+<p>C’est dans un objectif d’auto-apprentissage qu’Aurélien a alors décidé d’entreprendre le développement d’un “EDR maison”. Cet EDR utilisant les fonctionnalités de l’API Windows (et particulièrement les kernels callbacks, dont les spécificités sont présentées en conférence), il faudra alors développer un driver.</p>
+
+<p>Au travers d’exemples de code, la conférence met alors l’accent sur la complexité liée à ce type de développement bas niveau, ainsi que les contraintes que les EDR doivent alors surmonter avant même de démontrer leur efficacité.</p>
+
+<p><br /></p>
+
+<h2 id="conférence-parasitage-de-serveur-for-fun-and-profit-de-damien-virtualabs-cauquil">Conférence <strong>Parasitage de serveur for fun and profit</strong> de <a href="https://twitter.com/virtualabs">Damien <em>Virtualabs</em> CAUQUIL</a>.</h2>
+
+<p><em>Les serveurs et applications web reposent sur des technologies qui peuvent dans certains cas être détournées et utilisées à des fins non-prévues. Il est ainsi possible de parasiter un serveur ou une application en y stockant des données sans que ces derniers ne s’en rendent compte tout en permettant leur récupération dans un délai plus ou moins court, et ce sans nécessité d’authentification ou que cela soit facilement détectable !</em></p>
+
+<p>Source : <a href="https://lehack.org/track/parasitage-de-serveur-for-fun-and-profit/">https://lehack.org/track/parasitage-de-serveur-for-fun-and-profit/</a></p>
+
+<p>Nous allons vous présenter cette méthode simple et ingénieuse de détournement d’application pour stocker des fichiers sans même être authentifié.</p>
+
+<p>Prenons comme exemple une application disposant d’une mire d’authentification :</p>
+
+<p><img src="/assets/img/articles/lehack23/Parasite1.png" alt="authent" title="Notre application avec une mire d'authentification" /></p>
+
+<p>Nous constatons que le formulaire pour ajouter son adresse mail ne contrôle pas le format du texte renseigné, ni sa longueur.</p>
+
+<p><strong>Session 1 :</strong></p>
+
+<p><img src="/assets/img/articles/lehack23/Parasite2.png" alt="email" title="Formulaire email" /></p>
+
+<p>De plus, un cookie stocke la valeur écrite dans le formulaire.
+C’est un cookie dont le paramètre <em>durée maximum</em> est fixé à <em>Session</em>. Cela signifie que si l’on recharge la page d’authentification le cookie reste le même et la valeur d’email réapparaît dans le formulaire. Si nous fermons la page ou le navigateur, le cookie est supprimé côté client et le formulaire <em>Email address</em> n’est plus auto-rempli.</p>
+
+<p><strong>Session 2 :</strong></p>
+
+<p><img src="/assets/img/articles/lehack23/Parasite3.png" alt="new" title="Nouveau cookie" /></p>
+
+<p>Cependant, cela ne signifie pas qu’il ait également bien été supprimé côté serveur. Des cookies de sessions et les informations qui y sont liées peuvent être stockés des heures, des jours ou des mois après la fin de la session, en fonction de la configuration du serveur.</p>
+
+<p>Par exemple, si nous regardons sur le serveur hébergeant l’application, nous constatons que les cookies des deux sessions sont présents, même si la première est terminée.</p>
+
+<p><img src="/assets/img/articles/lehack23/Parasite4.png" alt="ls" title="ls cookie" /></p>
+
+<p>Nous pouvons y retrouver la valeur que nous avions entrée dans le formulaire <em>Email address</em>.</p>
+
+<p><img src="/assets/img/articles/lehack23/Parasite5.png" alt="cat" title="cat cookie" /></p>
+
+<p>Nous souhaitons alors stocker le contenu d’un fichier à la place du message <em>Bonjour</em>.</p>
+
+<p>Nous encodons une image PNG en base 64. Cela fonctionne avec tout autre type de fichier.</p>
+
+<p><img src="/assets/img/articles/lehack23/Parasite6.png" alt="png" title="Png en base 64" /></p>
+
+<p>Nous renseignons notre image encodée en base 64 dans le formulaire <em>Email address</em> et nous sauvegardons la valeur du cookie de notre session.</p>
+
+<p><img src="/assets/img/articles/lehack23/Parasite7.png" alt="depot" title="Depot de l'image" /></p>
+
+<p>L’image est bien écrite sur le serveur :</p>
+
+<p><img src="/assets/img/articles/lehack23/Parasite8.png" alt="image" title="Image sur le serveur" /></p>
+
+<p>Quelques jours plus tard, nous pouvons récupérer notre document en remplissant la valeur du cookie de la session dans notre navigateur.</p>
+
+<p><img src="/assets/img/articles/lehack23/Parasite9.png" alt="recuperation" title="Image récupération" /></p>
+
+<p>Pour éviter le parasitage de votre serveur, nous vous invitons à :</p>
+<ul>
+  <li>Contrôler le format et la longueur de tout texte renseigné par un utilisateur;</li>
+  <li>Initialiser un cookie de session après l’authentification réussie de l’utilisateur;</li>
+  <li>Supprimer côté serveur le cookie lors de la déconnexion de l’utilisateur;</li>
+  <li>Utiliser un antivirus sur votre serveur pour supprimer les fichiers malveillants.</li>
+</ul>
+
+<p><br /></p>
+
+<h2 id="conférence-prototype-pollution-and-where-to-find-them-par-bitk-et-sakiir">Conférence “Prototype pollution and where to find them” par <a href="https://twitter.com/bitk_">Bitk</a> et <a href="https://twitter.com/sakiirsecurity">Sakiir</a></h2>
+
+<p><em>La pollution des prototypes est une vulnérabilité dans les applications JavaScript qui peut avoir des impacts variables en fonction de la complexité et de la nature de l’application affectée. Elle exploite la fonction d’héritage de prototype JavaScript, qui permet aux objets d’hériter de propriétés et de méthodes. En manipulant la chaîne de prototypes d’un objet, un attaquant peut introduire des propriétés malveillantes, conduisant à un comportement inattendu et permettant potentiellement à l’attaquant d’exécuter du code arbitraire.</em></p>
+
+<p>Source : <a href="https://lehack.org/fr/track/prototype-pollution-and-where-to-find-them/">https://lehack.org/fr/track/prototype-pollution-and-where-to-find-them/</a></p>
+
+<p>La conférence avait pour but de présenter un aperçu des prototypes JavaScript et des attaques par pollution de ceux-ci.</p>
+
+<p>Un outil destiné à détecter ce type d’attaque en audit de code ou bien en test d’intrusion en boîte blanche nous a été présenté afin d’identifier plus facilement ce type de vulnérabilité sur de grosses applications basées sur le langage Javascript. Celui ci est accessible sur le gitlab suivant : <a href="https://github.com/yeswehack/pp-finder">https://github.com/yeswehack/pp-finder</a></p>
+
+<p>Enfin, plusieurs exemples de détection et d’exploitation de prototype pollution dans un context de test d’intrusion en boîte noire nous ont été présentés. Des exemples de charges utiles permettant d’exploiter les attaques de prototype pollution sur des frameworks ou librairies JavaScripts connus tels que VueJS ^3.2.47, Fastify ^4.13.0 ou Axios 0.27.2 ont pu nous être présentées.</p>
+
+<p>Les conséquences de l’exploitation d’une telle vulnérabilité sont variable en fonction de l’application et des librairies utilisées pouvant permettre de réaliser par la suite une attaque SSRF (Server Side Request Forgery), jusqu’à l’execution de code à distance sur le serveur.</p>
+
+<p>Pour conclure, les vulnérabilités de prototype pollution sont souvent difficiles à détecter dans une approche de test d’intrusion en boîte noire, et l’exploitation dépend alors majoritairement des composants utilisés par l’application ciblée. Il est aussi important de préciser que l’exploitation de cette vulnérabilité peut avoir des effets de bord important sur l’application pouvant dans certains cas créer un déni de service en corrompant les propriétés de l’application.</p>
+
+<p>Un article publié sur YesWeHack, résume les différentes manières de détécter et d’exploiter cette vulnérabilité : <a href="https://blog.yeswehack.com/talent-development/server-side-prototype-pollution-how-to-detect-and-exploit/">https://blog.yeswehack.com/talent-development/server-side-prototype-pollution-how-to-detect-and-exploit/</a></p>
+
+<p><br /></p>
+
+<h2 id="conférence-dpapi---dont-put-administration-passwords-in-par-thomas-seigneuret-et-pierre-alexandre-vandewoestyne">Conférence “DPAPI - Don’t Put Administration Passwords In” par <a href="https://twitter.com/_zblurx">Thomas SEIGNEURET</a> et <a href="https://twitter.com/T00uF">Pierre-Alexandre VANDEWOESTYNE</a></h2>
+
+<p><em>La DPAPI est une API des OS Windows mise à disposition des développeurs pour stocker facilement les secrets des utilisateurs, sans qu’ils aient à se soucier de la partie crypto. Pour les développeurs, il suffit d’utiliser les fonctions Protect et Unprotect pour respectivement stocker de manière sécurisée les données et accéder aux données stockées. Beaucoup de secrets différents sont stockés via la DPAPI : – Mots de passe de Tasks Scheduled – Mots de passe dans les navigateurs (Chrome Based et Internet Explorer) – Clé privée des certificats – Mots de passe de certaines solutions (notamment des solutions d’administrations à distance) – etc. D’un point de vue offensif, ces secrets sont très intéressants à récupérer, pré et post compromission de domaine, et permettent souvent de pousser plus loin la compromission d’un SI.</em></p>
+
+<p>Source : <a href="https://lehack.org/fr/track/dpapi-dont-put-administration-passwords-in/">https://lehack.org/fr/track/dpapi-dont-put-administration-passwords-in/</a></p>
+
+<p>Une conférence attendue était celle de Thomas Seigneuret et Pierre-Alexandre Vandewoestyne sur la DPAPI. Cette API, propre aux systèmes Windows, permet de faciliter la sauvegarde de secrets.</p>
+
+<p>Les deux experts expliquent qu’elle peut facilement devenir un outil redoutable pour un attaquant. Il suffit de compromettre un poste ou serveur Windows d’une entreprise pour récupérer de nombreux identifiants tels que des mots de passe de navigateurs, de tâches planifiées, de bureau à distance, ou encore des clés privées de certificats et de points d’accès Wi-Fi.</p>
+
+<p>Pire, pour quelqu’un ayant compromis un contrôleur de domaine Active Directory, il devient possible de rapidement récupérer tous ces identifiants de tous les utilisateurs du domaine. Cela peut rapidement permettre de rebondir sur d’autres périmètres ou services externes à l’entreprise compromise (Tenant Azure, NAS, backups, …).</p>
+
+<p><br /></p>
+
+<h2 id="conférence-physical-intrusion-for-fun-and-profit-par-anthony-boens">Conférence “Physical Intrusion For Fun And Profit” par Anthony BOENS</h2>
+
+<p><em>Lors de missions de type intrusion physique, les auditeurs se retrouvent face à différents blocages physiques. Le but de cette présentation a pour objectif de démontrer que nombreux de ces dispositifs de blocage peuvent être contournés facilement et sans entraînement. En effet, qui ne sest jamais retrouvé face à un Digicode en métal ? Une porte fermée avec un cylindre de mauvaise qualité ? Ou encore, un portail télécommandé ?</em></p>
+
+<p>Source : <a href="https://lehack.org/fr/track/physical-intrusion-for-fun-and-profit/">https://lehack.org/fr/track/physical-intrusion-for-fun-and-profit/</a></p>
+
+<p>La première journée de conférences s’est clôturée par une présentation sur les tests d’intrusion physique et plus particulièrement sur des techniques de crochetage, dites de “lockpicking”.</p>
+
+<p>Anthony a démontré que la plupart des serrures sur le marché peuvent être cassées en très peu de temps. Certaines demandent du matériel spécifique, pour par exemple tester plusieurs dizaines de combinaisons d’un coup et trouver le bon alignement des goupilles en quelques secondes. Mais pour un prix bon marché, la plupart des portes que nous ouvrons au quotidien peuvent facilement être ouvertes à l’insu de leur propriétaire.</p>
+
+<p>Vous avez peur de laisser des traces en crochetant ? Certaines portes claquées peuvent être ouvertes sans crochetage, simplement à l’aide d’une fine feuille rigide, comme des résultats médicaux de scanner, ou avec votre carte de crédit, comme l’explique Anthony. Cette technique consiste à glisser la carte entre la porte et le bâti et à remonter jusqu’à la serrure en donnant de légers coups dans la porte pour insérer notre carte et libérer le pêne demi-tour pour ouvrir la porte.</p>
+
+<p>Enfin, les portails et voitures à ouverture à distance n’échappent pas aux attaques par interception de signal radio. En se positionnant entre l’usager et l’équipement, un attaquant peut intercepter le signal envoyé par le “bip” (télécommande). Un simple relai du signal permet d’ouvrir des portes de voitures ou de portails privés.</p>
+
+<p>Cette conférence prouve que les sécurités physiques ne sont pas encore au niveau de sécurité attendu par les professionnels et elle démontre le besoin de sensibiliser les collaborateurs des entreprises à la présence d’intrus dans leurs locaux.</p>
+
+
+    </div>
+</div>
+
+
+    </div>
+  </body>
+</html>

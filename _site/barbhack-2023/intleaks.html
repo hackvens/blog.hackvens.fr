@@ -1,0 +1,135 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Intleaks</title>
+<link rel="stylesheet" href="/assets/css/styles.css">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">
+
+    <link rel="stylesheet" type="text/css" href="/assets/css/monokai.css">
+  </head>
+  <body data-bs-theme="dark">
+    <header class="d-flex py-3 mb-4 border-bottom" style="align-items: center; justify-content: space-around;">
+    <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
+      <span class="fs-4"><span class="logo1">Hack</span><span class="logo2">vens</span></span>
+    </a>
+    <button id="btnSwitch" class="">💡/🌙</button>
+    <script defer="defer">
+      document.getElementById('btnSwitch').addEventListener('click',()=>{
+      if (document.body.getAttribute('data-bs-theme') == 'dark') {
+          document.body.setAttribute('data-bs-theme','light')
+          document.documentElement.style.setProperty("--logo-color1", "#161616")
+      }
+      else {
+          document.body.setAttribute('data-bs-theme','dark')
+          document.documentElement.style.setProperty("--logo-color1", "#fff")
+
+      }
+      })
+    </script>
+  </header>
+    <div class="container">
+     <div class="post">
+    <div class="post__back">
+    	<a href="/">&lt;-- home</a>
+    </div>
+    <div class="post__title">
+    	<h1>Barbhack 2023 / Intleaks</h1>
+	<i>August 26, 2023</i>
+    </div>
+    <div class="post__meta">
+    	<p></p>
+    </div>
+    <div class="post__content"?>
+        <h1 id="intleaks"><strong>INTLEAKS</strong></h1>
+
+<p>Nous nous attaquons au challenge Web INTLEAKS. Il s’agit d’une application dont le but est de partager des documents dévoilés par des lanceurs d’alertes. La page d’accueil indique que deux serveurs interne hébergent des fichiers dévoilés. L’un d’entre eux comprend les fichiers approuvés, et l’autre ceux qui ne l’ont pas été. L’objectif de ce challenge est d’atteindre un fichier secret qui n’a pas encore été approuvé et dévoilé.</p>
+
+<p>Dans un premier temps, nous remarquons sur la page d’accueil qu’un bouton permet aux utilisateurs de s’authentifier à l’API en tant qu’anonyme.</p>
+
+<p><img src="/assets/img/barbhack2023/intleaks/image-20230901133133813.png" alt="image-20230901133133813" /></p>
+
+<p>Ce bouton requête le endpoint <code class="language-plaintext highlighter-rouge">/api/auth</code>, nous délivrant un jeton JWT :</p>
+
+<p><img src="/assets/img/barbhack2023/intleaks/image-20230901132724512.png" alt="image-20230901132724512" /></p>
+
+<p>Nous analysons le contenu de celui-ci. Nous constatons qu’il est signé à l’aide de l’algorithme HS512, symétrique, dont la clé est ici à priori stockée dans le fichier indiqué par l’entête « kid ». Nous notons également la présence d’un paramètre <code class="language-plaintext highlighter-rouge">"acl" :  "anon"</code> dans le corps de ce jeton.</p>
+
+<p><img src="/assets/img/barbhack2023/intleaks/image-20230901132741789.png" alt="image-20230901132741789" /></p>
+
+<p>Il est possible d’identifier certains endpoints de l’API depuis le code source de la page.</p>
+
+<p><img src="/assets/img/barbhack2023/intleaks/image-20230901132754256.png" alt="image-20230901132754256" /></p>
+
+<p>Le endpoint <code class="language-plaintext highlighter-rouge">/api/me</code> permet d’afficher nos privilèges en se basant sur notre JWT.</p>
+
+<p>Toujours depuis la page d’accueil, nous pouvons accéder à des documents. Ceux-ci correspondent aux documents ayant été « dévoilés et approuvés ».</p>
+
+<p><img src="/assets/img/barbhack2023/intleaks/image-20230901132829256.png" alt="image-20230901132829256" /></p>
+
+<p>Nous remarquons un paramètre dans l’URL correspondant au document à lire. En manipulant ce paramètre, un message indique que le nom de fichier doit se terminer par <em>.disclosed</em>.</p>
+
+<p><img src="/assets/img/barbhack2023/intleaks/image-20230901132842161.png" alt="image-20230901132842161" /></p>
+
+<p>Nous parvenons également à déclencher d’autres messages d’erreurs, indiquant que cette fonctionnalité émet des requêtes HTTP de la forme suivante :</p>
+
+<ul>
+  <li>http://files.internal{location}</li>
+</ul>
+
+<p><strong>files.internal</strong> correspond donc au serveur dont les fichiers ont été « dévoilés et approuvés ».</p>
+
+<p>Nous remarquons ensuite que les caractères « ? » et « # » nous permettent d’échapper la vérification de l’extension. Le directory listing étant activé sur <strong>files.internal</strong>, nous parvenons ainsi à lister les fichiers présents sur ce serveur web, et à y accéder en lecture. Nous parvenons notamment à lire les fichiers source <em>app.py</em> et <em>jwt.py</em>, également présents sur ce serveur et contenant le code source des fonctionnalités de l’API.</p>
+
+<p><img src="/assets/img/barbhack2023/intleaks/image-20230901132905960.png" alt="image-20230901132905960" /></p>
+
+<p>A partir de ce code source, nous pouvons comprendre comment sont générés les jetons JWT servant à gérer l’authentification. A partir du code source, nous identifions une LFI (Local File Inclusion) dans l’entête JKI du JWT.</p>
+
+<p><img src="/assets/img/barbhack2023/intleaks/image-20230901132931988.png" alt="image-20230901132931988" /></p>
+
+<p>Cet entête prend en entrée un fichier correspondant à la clé permettant de signer le jeton JWT. Ainsi, sélectionner en entrée un fichier dont nous connaissons le contenu revient à connaitre la clé permettant de signer le jeton.</p>
+
+<p>De plus, nous remarquons qu’un JWT est considéré comme administrateur s’il contient, dans son corps, l’entrée suivante :</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>"acl" : "admin"
+</code></pre></div></div>
+
+<p><img src="/assets/img/barbhack2023/intleaks/image-20230901132956918.png" alt="image-20230901132956918" /></p>
+
+<p>Nous cherchons donc à modifier le contenu de notre JWT. Ayant obtenu le contenu de quelques fichiers sur le serveur, par exemple « app.py », nous pouvons utiliser ce fichier comme clé pour générer une signature valide, et spécifier le chemin vers ce même fichier dans l’entête « kid » à l’aide de la LFI.</p>
+
+<p>Nous réalisons donc un script python afin de générer un jeton JWT administrateur valide, prenant en compte les éléments précédemment énoncés.</p>
+
+<p><img src="/assets/img/barbhack2023/intleaks/image-20230901133015565.png" alt="image-20230901133015565" /></p>
+
+<p>Nous validons ensuite que le JWT forgé est bien valide en nous connectant à l’application.</p>
+
+<p><img src="/assets/img/barbhack2023/intleaks/image-20230901132132341.png" alt="image-20230901132132341" /></p>
+
+<p>Nous sommes à présent en mesure de requêter le endpoint <code class="language-plaintext highlighter-rouge">/api/leaks</code>. Le serveur nous retourne le nom du fichier « caché » recherché, et d’après le code source, nous pouvons comprendre que celui est hébergé sur le serveur « whisteblower.internal ».</p>
+
+<p><img src="/assets/img/barbhack2023/intleaks/image-20230901133036443.png" alt="image-20230901133036443" /></p>
+
+<p><img src="/assets/img/barbhack2023/intleaks/image-20230901132048027.png" alt="image-20230901132048027" /></p>
+
+<p>N’ayant pas accès directement à ce serveur, nous cherchons à forcer l’application à le requêter via une attaque de type SSRF.</p>
+
+<p>Pour ce faire, nous pouvons réutiliser le endpoint « /api/document » et manipuler le paramètre <strong>location</strong> afin de forger une requête vers le serveur whistleblower.internal :</p>
+
+<ul>
+  <li>http://internal.fs@whisteblower.internal/<strong>{leak_file}</strong>?.disclosed</li>
+</ul>
+
+<p>Nous avons ainsi gagné accès en lecture au fichier recherché et résolu ce challenge :</p>
+
+<p><img src="/assets/img/barbhack2023/intleaks/image-20230901133052785.png" alt="image-20230901133052785" /></p>
+
+
+    </div>
+</div>
+
+
+    </div>
+  </body>
+</html>

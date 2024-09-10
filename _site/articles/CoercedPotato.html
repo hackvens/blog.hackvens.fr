@@ -1,0 +1,855 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coerced Potato</title>
+<link rel="stylesheet" href="/assets/css/styles.css">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">
+
+    <link rel="stylesheet" type="text/css" href="/assets/css/monokai.css">
+  </head>
+  <body data-bs-theme="dark">
+    <header class="d-flex py-3 mb-4 border-bottom" style="align-items: center; justify-content: space-around;">
+    <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
+      <span class="fs-4"><span class="logo1">Hack</span><span class="logo2">vens</span></span>
+    </a>
+    <button id="btnSwitch" class="">💡/🌙</button>
+    <script defer="defer">
+      document.getElementById('btnSwitch').addEventListener('click',()=>{
+      if (document.body.getAttribute('data-bs-theme') == 'dark') {
+          document.body.setAttribute('data-bs-theme','light')
+          document.documentElement.style.setProperty("--logo-color1", "#161616")
+      }
+      else {
+          document.body.setAttribute('data-bs-theme','dark')
+          document.documentElement.style.setProperty("--logo-color1", "#fff")
+
+      }
+      })
+    </script>
+  </header>
+    <div class="container">
+     <div class="post">
+    <div class="post__back">
+    	<a href="/">&lt;-- home</a>
+    </div>
+    <div class="post__title">
+    	<h1>Articles / Coerced Potato</h1>
+	<i>October 9, 2023</i>
+    </div>
+    <div class="post__meta">
+    	<p></p>
+    </div>
+    <div class="post__content"?>
+        <p><strong>CoercedPotato - Une patate de plus ! 🥔</strong></p>
+
+<h1 id="table-des-matières">Table des matières</h1>
+
+<p><a href="#introduction"><strong>1. Introduction</strong></a></p>
+
+<p><a href="#une-histoire-de-privilèges"><strong>2.</strong> <strong>Une histoire de privilèges</strong></a></p>
+
+<p><a href="#les-access-token-windows"><strong>3.</strong> <strong>Les Access Token Windows</strong></a></p>
+
+<p><a href="#parlons-bien-parlons-named-pipe"><strong>4.</strong> <strong>Parlons bien, parlons « Named Pipe »</strong></a></p>
+
+<p><a href="#un-peu-de-coercition-dauthentification"><strong>5.</strong> <strong>Un peu de Coercition d’authentification</strong></a></p>
+
+<p><a href="#un-peu-de-code-maintenant-c-on-fire"><strong>6.</strong> <strong>Un peu de code maintenant (C++ on fire) !</strong></a></p>
+
+<p><a href="#remerciements"><strong>7.</strong> <strong>Remerciements</strong></a></p>
+
+<h1 id="introduction"><strong>Introduction</strong></h1>
+
+<p>Depuis 2016, de nombreux exploits nommés « Potatoes » ont été découverts
+et sont utilisés dans le but d’élever ses privilèges dans un système
+d’exploitation Windows. Le principe est toujours le même : passer d’un
+compte ayant les privilèges adéquats, souvent un compte de service, à
+<strong>NT AUTHORITY/SYSTEM</strong> (le compte le plus privilégié sous
+Windows)<strong><em>.</em></strong></p>
+
+<p>L’objectif de cet article n’est pas de passer en revue la collection
+« Potatoes » disponible à ce jour. Pour cela, l’excellent article de
+@Blackwasp est disponible à l’URL suivant :
+<a href="https://hideandsec.sh/books/windows-sNL/page/in-the-potato-family-i-want-them-all.">https://hideandsec.sh/books/windows-sNL/page/in-the-potato-family-i-want-them-all.</a></p>
+
+<p>En revanche, la combinaison de plusieurs concepts connus a permis la
+création d’un nouvel outil : « <strong>CoercedPotato</strong> ». Cet outil permet
+notamment d’élever ses privilèges sur les versions les plus récentes de
+“Windows 10” et “Windows Server 2022”, à date de l’article.</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image1.png" style="width:6.3in;height:5.26389in; display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, capture d’écran, Police Description générée automatiquement" /></p>
+
+<p>Notez que nous parlons de « nouvel outil » et non pas « nouvelle
+technique », dans la mesure où celui-ci concatène les connaissances
+actuelles concernant les <strong>impersonate token</strong> et les méthodes
+permettant de forcer des authentifications via des <strong>fonctions RPC
+vulnérables</strong>. Ces deux concepts seront expliqués au fur et à mesure de
+l’article.</p>
+
+<p>Mais avant de commencer, il va falloir passer en revue plusieurs
+fondamentaux.</p>
+
+<h1 id="une-histoire-de-privilèges"><strong>Une histoire de privilèges</strong></h1>
+
+<p>« If you have SeAssignPrimaryToken or SeImpersonatePrivilege, you are
+SYSTEM ». C’est une citation issue d’un tweet (un X ?) de <em>@decoder_it</em>
+qui n’est en somme pas très loin de la réalité.</p>
+
+<p>Lors d’un test d’intrusion, et plus particulièrement en test d’intrusion
+interne, nous parvenons fréquemment à exécuter du code à distance. Dans
+le cas d’un système Windows, une fois une invite de commande obtenue sur
+la machine ciblée, nous nous retrouvons parfois dans la situation
+suivante : nous exécutons des commandes dans le contexte de sécurité de
+l’utilisateur <strong>NT AUTHORITY\LOCAL SERVICE</strong>.</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image2.png" style="width:3.88203in;height:0.98002in; display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, capture d’écran, Police, ligne Description générée automatiquement" /></p>
+
+<p>Ce compte dispose de privilèges restreints sur le système. L’objectif
+est donc d’élever nos privilèges et d’obtenir une invite de commandes
+dans le contexte de l’utilisateur <strong>NT AUTHORITY\SYSTEM</strong>, afin de
+prendre le contrôle complet du système. Cela peut ensuite permettre de
+tenter de rebondir sur d’autres machines du réseau, en récupérant des
+identifiants en mémoires vives, en interagissant avec les <em>access
+tokens</em> de Windows, en récupérant la base des utilisateurs
+locaux, etc. Mais… on s’égare ! 😊</p>
+
+<p>Pour revenir au sujet initial, lorsque nous listons les privilèges de
+l’utilisateur <strong>NT AUTHORITY\LOCAL SERVICE</strong>, celui-ci dispose
+normalement du privilège <strong>SeImpersonatePrivilege</strong> :</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image3.png" style="width:6.3in;height:1.77431in; display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, capture d’écran, Police Description générée automatiquement" /></p>
+
+<p>C’est ce privilège qui nous intéresse tout particulièrement pour la
+suite de l’article !</p>
+
+<p>Si nous suivons la documentation officielle de Microsoft, ce privilège
+permet <strong>« <em>l’emprunt d’identité d’un client après l’authentification</em></strong>
+<em>et la création de droits d’utilisateur <strong>d’objets globaux.</strong></em> »</p>
+
+<p><em><a href="https://learn.microsoft.com/fr-fr/troubleshoot/windows-server/windows-security/seimpersonateprivilege-secreateglobalprivilege">https://learn.microsoft.com/fr-fr/troubleshoot/windows-server/windows-security/seimpersonateprivilege-secreateglobalprivilege</a></em></p>
+
+<p>Concrètement, dans un environnement Windows, lorsqu’un utilisateur
+possède le privilège <strong>SeImpersonatePrivilege</strong>, il a la possibilité de
+démarrer des processus (c’est-à-dire des programmes, par exemple
+<strong>cmd.exe</strong>) au nom d’un autre utilisateur. Cela se fait en appelant la
+fonction <strong>CreateProcessWithTokenW()</strong> dans le contexte de sécurité de
+l’utilisateur.</p>
+
+<p><a href="https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createprocesswithtokenw"><em>https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createprocesswithtokenw</em></a></p>
+
+<p>A noter qu’il existe un privilège très similaire à
+<strong>SeImpersonatePrivilege </strong>: <strong>SeAssignPrimaryToken</strong>. Il permet
+également le démarrage d’un processus au nom d’un autre utilisateur avec
+la fonction <strong>CreateProcessAsUser()</strong>, mais nous ne rentrerons pas dans
+les détails dans cet article.</p>
+
+<p><em><a href="https://learn.microsoft.com/fr-fr/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasuserw">https://learn.microsoft.com/fr-fr/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasuserw</a></em></p>
+
+<p>Toutes les techniques dites « <strong>Potatoes</strong> » reposent sur ces privilèges
+(à l’exception de RemotePotato) pour obtenir des droits <strong>NT
+AUTHORITY\SYSTEM</strong> (nous appellerons ça les droits <strong>SYSTEM</strong> pour le
+reste de l’article) sur une machine Windows afin de la compromettre.
+Vous l’aurez compris, <strong>SeAssignPrimaryToken</strong> et
+<strong>SeImpersonatePrivilege</strong> sont des privilèges très précieux pour un
+attaquant et offrent (quasi) toujours la possibilité d’élever ses
+privilèges.</p>
+
+<p>L’objectif de l’article est donc de montrer une nouvelle technique
+exploitant ces privilèges. Il est maintenant temps de rentrer dans le
+vif du sujet ! </p>
+
+<h1 id="les-accesstokenwindows"><strong>Les Access Token Windows</strong></h1>
+
+<p>En parcourant la documentation de Microsoft, il est possible de
+retrouver la définition des fonctions énoncées plus tôt :
+<strong>CreateProcessWithTokenW</strong> et <strong>CreateProcessAsUserW</strong>. La structure de
+ces fonctions est la suivante :</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image4.png" style="width:3.11927in;height:2.16522in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, capture d’écran, nombre, Police Description générée automatiquement" /><img src="/assets/img/articles/coercedpotato/image5.png" style="width:2.90177in;height:2.13404in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, capture d’écran, Police, nombre Description générée automatiquement" /></p>
+
+<p>Il est intéressant de noter que ces deux fonctions nécessitent un
+<strong>access token</strong> en argument pour être utilisées, et plus spécifiquement
+un <strong>primary token</strong>. Mais qu’est-ce que c’est cette histoire de
+<strong>token</strong> ?</p>
+
+<p>Pour reprendre sa définition telle que décrite par Microsoft, les
+<em><strong>access token</strong> sont « des objets qui décrivent le contexte de
+sécurité d’un processus ou d’un thread.</em> ».</p>
+
+<p>Concrètement, l’<strong>access token</strong>, ou jeton d’accès, est obtenu après une
+authentification réussie et contient un ensemble d’informations
+essentielles pour Windows, tel que l’identité de l’utilisateur, son
+groupe, sa liste de contrôle d’accès (ACL), ses privilèges et surtout,
+le type de token. Il pourrait par exemple être comparé à un jeton JWT
+utilisé par une application web.</p>
+
+<p>Par exemple, si je démarre le processus <strong>cmd.exe</strong> avec un <strong>access
+token</strong> appartenant à l’utilisateur <strong>vagrant</strong>, <strong>cmd.exe</strong> aura les
+privilèges du compte <strong>vagrant</strong>.</p>
+
+<p><a href="https://learn.microsoft.com/fr-fr/windows/win32/secauthz/access-tokens">https://learn.microsoft.com/fr-fr/windows/win32/secauthz/access-tokens</a></p>
+
+<p>Il existe deux types d’<strong>access token</strong> : les <strong>primary token</strong> et les
+<strong>impersonation token</strong>. Pour comprendre la différence entre ces deux
+types de jetons, il est nécessaire de connaître la différence entre un
+thread et un processus dans un système Windows.</p>
+
+<p>Pour faire simple, un processus est un espace mémoire virtuel exécutant
+du code sur le système. Un thread correspond à du code exécuté depuis un
+processus. Il est donc temporaire et est détruit une fois terminé.</p>
+
+<p>Pour imager, lorsque l’application Word est utilisée, le processus
+<strong>WINWORD.exe</strong> est lancé sur la machine. Ce processus est démarré par
+l’utilisateur avec son <strong>primary token</strong>. L’application va ensuite
+utiliser des threads, par exemple pour gérer des tâches en arrière-plan
+(affichage de l’interface graphique, traitement des entrées utilisateur,
+etc.). Cela permet une expérience fluide lors de l’utilisation de Word.
+Ces threads seront exécutés à l’aide d’un <strong>impersonation token</strong>.</p>
+
+<p><a href="https://learn.microsoft.com/fr-fr/windows/win32/com/processes--threads--and-apartments">https://learn.microsoft.com/fr-fr/windows/win32/com/processes--threads--and-apartments</a></p>
+
+<p>Maintenant que les bases sont acquises, revenons à nos moutons.</p>
+
+<p>Comme expliqué précédemment, pour pouvoir démarrer un processus dans le
+contexte d’un utilisateur, il nous faut deux choses : le privilège
+adéquat (<strong>SeImpersonatePrivilege</strong> ou <strong>SeAssignPrimaryToken</strong>) et un
+<strong>primary token</strong>. Bonne nouvelle pour nous, pour ce dernier prérequis,
+les deux types de jetons sont interchangeables grâce à la fonction
+<strong>DuplicateTokenEx</strong>.</p>
+
+<p><a href="https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-duplicatetokenex">https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-duplicatetokenex</a></p>
+
+<p>Ainsi, l’obtention d’un <strong>impersonation token</strong> d’un utilisateur (au
+hasard, le compte <strong>SYSTEM</strong>) permet, grâce à <strong>DuplicateTokenEx</strong>,
+d’obtenir un <strong>primary token</strong> et ainsi de créer un processus dans son
+contexte de sécurité (et donc avec son identité et surtout ses
+privilèges 😏).</p>
+
+<p>C’est bien beau tout ça, mais une question (très ?) importante subsiste…
+Comment récupérer ce fameux <strong>access</strong> <strong>token</strong> ?</p>
+
+<h1 id="parlons-bien-parlons-named-pipe"><strong>Parlons bien, parlons « Named Pipe »</strong></h1>
+
+<p>Minute papillon ! Avant de pouvoir expliquer comment récupérer un
+<strong>access token</strong>, il est nécessaire de repasser sur certaines bases
+(encore ? ). Promis, c’est la dernière fois !</p>
+
+<p>Traditionnellement, les techniques « Potatoes » (Hot Potato, Sweet
+Potato, Local Potato, etc.) utilisent des fonctions RPC pour forcer
+l’utilisateur <strong>NT AUTHORITY\SYSTEM</strong> à s’authentifier sur un proxy
+local que l’attaquant contrôle, puis à relayer cette authentification
+jusqu’à récupérer un <strong>impersonation token</strong> du compte <strong>SYSTEM</strong>. Mais
+l’objectif de l’article n’est pas de revoir ces techniques bien connues
+!</p>
+
+<p>Il existe en fait un autre moyen pour aboutir au même résultat :
+l’utilisation de « Named Pipe ».</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image6.jpg" style="width:1.76563in;height:1.10352in;display:block; margin-left:auto; margin-right:auto" alt="René Magritte - Ceci n&#39;est pas une pipe - Museum TV" /></p>
+
+<p>D’après la documentation de Microsoft, un <em>« pipe est une section de
+mémoire partagée qui traite la communication entre un serveur pipe et un
+client. Le processus qui crée le pipe est un <strong>serveur</strong></em> <em><strong>pipe</strong>. Un
+processus qui se connecte au pipe est <strong>un client</strong>. Un processus écrit
+des informations dans le pipe, puis l’autre processus lit les
+informations du pipe. Cette vue d’ensemble décrit comment créer, gérer
+et utiliser des pipes.</em> »</p>
+
+<p><a href="https://learn.microsoft.com/en-us/windows/win32/ipc/pipes">https://learn.microsoft.com/en-us/windows/win32/ipc/pipes</a></p>
+
+<p>Pour résumer, les <strong>pipes</strong> permettent l’échange de données
+inter-processus (IPC). Sous Windows, il existe deux types de <em>pipe</em> :</p>
+
+<ol>
+  <li>
+    <p><strong>Anonymous pipe :</strong> Les “Anonymous pipes” transfèrent les données
+entre un processus parent et un processus enfant.</p>
+  </li>
+  <li>
+    <p><strong>Named pipe :</strong> Les “Named pipes” transfèrent des données entre des
+processus qui n’ont pas de lien de parenté, à condition qu’il ait
+les privilèges appropriés pour interagir avec le processus.</p>
+  </li>
+</ol>
+
+<p>Dans cet article ce qui nous intéresse, ce sont les <strong>named pipe</strong>.
+Pourquoi ?</p>
+
+<p>Parce qu’un processus ayant créé un serveur pipe peut utiliser une
+fonction très utile, surtout dans notre cas :
+<strong>ImpersonateNamedPipeClient()</strong>. Cette fonction permet de nous placer
+dans le contexte de sécurité du client contactant le <strong>named pipe </strong>! La
+principale condition pour pouvoir l’utiliser est de posséder le
+privilège <strong>SeImpersonatePrivilege</strong>… Parfait, c’est ce que nous allons
+utiliser ! 😊</p>
+
+<p><strong><a href="https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-impersonatenamedpipeclient">https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-impersonatenamedpipeclient</a></strong></p>
+
+<p>Cette fonction permet au serveur pipe recevant une connexion entrante
+d’un client (par exemple d’un autre processus) d’emprunter l’identité du
+client pour effectuer des actions en son nom, dans son contexte de
+sécurité, en utilisant son <strong>access token</strong>.</p>
+
+<p>Typiquement, dans l’exemple ci-dessous, nous créons un serveur pipe
+accessible via le Named Pipe <strong>\.\pipe\mynamedpipe</strong>.</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image7.png" style="width:5.72917in;height:0.31944in;display:block; margin-left:auto; margin-right:auto" /></p>
+
+<p>Puis, lorsqu’un utilisateur se connecte à ce serveur pipe, nous
+récupérons les informations liées à son <strong>access token</strong>. Dans l’exemple
+ci-dessous, nous nous connectons au serveur pipe avec l’utilisateur
+<strong>lab\advens</strong>.</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image8.png" style="width:6.3in;height:3.51944in;display:block; margin-left:auto; margin-right:auto" /></p>
+
+<p>Donc, pour résumer, si nous disposons les privilèges requis et parvenons
+à forcer l’utilisateur <strong>NT AUTHORITY\SYSTEM</strong> à s’authentifier sur un
+<strong>serveur</strong> <strong>pipe</strong> que nous contrôlons, nous sommes en mesure
+d’exécuter des processus en son nom, et donc du code (c’est pas beau ça
+? 😊).</p>
+
+<p>Concrètement, c’est exactement ce qu’a expliqué @Itm4n dans son blog. En
+utilisant la vulnérabilité <strong>PrinterBug</strong>, l’outil <strong>PrintSpoofer</strong>
+permet d’élever ses privilèges et obtenir des droits <strong>NT
+AUTHORITY\SYSTEM</strong> à partir d’un compte disposant notamment du privilège
+<strong>SeImpersonatePrivilege</strong>.</p>
+
+<p>Pour ne pas simplement paraphraser son article passionnant, je vous
+invite à le lire si vous n’êtes pas particulièrement familier avec
+l’outil <strong>PrintSpoofer</strong>.</p>
+
+<p><a href="https://itm4n.github.io/printspoofer-abusing-impersonate-privileges/#getting-a-system-token">https://itm4n.github.io/printspoofer-abusing-impersonate-privileges/</a></p>
+
+<p>Le <strong>PrinterBug</strong> exploite une « fonctionnalité » implémentée dans
+l’interface RPC MS-RPRN en appelant la procédure RPC
+<strong>RpcRemoteFindFirstPrinterChangeNotificationEx</strong>, qui permet d’envoyer
+une notification d’impression à un serveur d’impression. Pour mieux
+comprendre, cette fonction RPC peut être détournée pour forcer une
+machine à s’authentifier où l’on veut, simplement en indiquant un chemin
+vers un (faux) serveur d’impression (situé sur un Named Pipe par
+exemple), ce qui peut être utile dans le cadre d’autres exploits (<a href="mailto:https://medium.com/@riccardo.ancarani94/exploiting-unconstrained-delegation-a81eabbd6976">Voir
+cet
+article</a>).</p>
+
+<p>Néanmoins, ce qui nous intéresse ici, c’est le bug utilisé après
+exploitation de la vulnérabilité <strong>PrinterBug</strong>. Celui-ci réside dans un
+problème d’interprétation des « / » par le système Windows. Je
+m’explique :</p>
+
+<p>Lorsque la procédure RPC
+<strong>RpcRemoteFindFirstPrinterChangeNotificationEx</strong> est appelée, le
+processus <strong>spoolsv.exe</strong>, qui est démarré dans le contexte de sécurité
+de l’utilisateur <strong>NT AUTHORITY\SYSTEM</strong>, vérifie le chemin spécifié par
+l’utilisateur. Si le named pipe indiqué n’est pas de la forme
+<strong>\somewhere\pipe\spoolss</strong>, une erreur est renvoyée, sinon, il tente
+de s’y connecter.</p>
+
+<p>Par défaut, il n’est pas possible de créer un named pipe déjà existant,
+donc pas possible d’écouter sur <strong>\localhost\pipe\spoolss</strong> ! En
+revanche, lorsque le chemin spécifié est de la forme
+<strong>\somewhere/pipe/controlled</strong>, alors le chemin spécifié est considéré
+comme valide (oui) et il est finalement corrigé par le système qui
+ajoute <strong>\pipe\spoolss</strong> à la fin. Par conséquent, une connexion est
+effectuée sur <strong>\somewhere\pipe\controlled\pipe\spoolss</strong>.</p>
+
+<p>Dans le cadre de <strong>Printspoofer</strong>, la connexion effectuée via le
+processus <strong>spoolsv.exe</strong>, donc dans le contexte de sécurité du compte
+<strong>NT AUTHORIY\SYSTEM</strong>, se fait localement sur
+<strong>\localhost\pipe\controlled\pipe\spoolss</strong>. Bingo ! C’est un named
+pipe sur lequel il est possible d’écouter.</p>
+
+<p>Pour résumer, grâce à ce bug, il est possible de récupérer un <strong>access
+token</strong> associé au compte <strong>NT AUTHORITY\SYSTEM,</strong> via une connexion sur
+un Named Pipe que nous contrôlons. Dès lors, il est possible de démarrer
+un cmd.exe avec les privilèges <strong>SYSTEM</strong> !</p>
+
+<p>Mais que se passerait-il si le spooler d’impression Windows n’est pas
+activé sur la machine ? </p>
+
+<p>C’est là qu’interviennent des techniques de coercition
+d’authentification plus récemment découvertes et notre outil :
+<strong>CoercedPotato</strong>.</p>
+
+<h1 id="un-peu-de-coercition-dauthentification"><strong>Un peu de Coercition d’authentification</strong></h1>
+
+<p>En 2021, la vulnérabilité PetitPotam a permis de dévoiler au grand jour
+la possibilité de forcer une machine à s’authentifier n’importe où sur
+le réseau, notamment via la fonction RPC <strong>EfsRpcOpenFileRaw</strong>
+implémentée par l’interface RPC <strong>MS-EFSRPC</strong>. Cette fonction permet
+l’ouverture d’un objet chiffré sur un serveur, afin d’effectuer une
+sauvegarde ou de la restaurer.</p>
+
+<p>Dans le courant de l’année 2022, le travail de P0dalirius a 
+montré qu’il existe une multitude de fonctions RPC pouvant être
+exploitées pour forcer des authentifications grâce à son outil Coercer
+(<a href="https://github.com/p0dalirius/Coercer">https://github.com/p0dalirius/Coercer</a>).</p>
+
+<p>De plus, de nombreuses méthodes n’ont pas encore été testées, mais
+pourraient être exploitées pour forcer une authentification :
+<a href="https://github.com/p0dalirius/windows-coerced-authentication-methods">https://github.com/p0dalirius/windows-coerced-authentication-methods</a>.</p>
+
+<p>L’idée nous est donc venue de la combinaison des techniques utilisées
+par l’outil PrintSpoofer associées aux fonctions RPC vulnérables
+remontées par @P0dalirius.</p>
+
+<p>Notre outil a ainsi pour vocation de regrouper toutes les méthodes de
+coercition en local permettant une élévation de privilèges à partir des
+privilèges <strong>SeImpersonatePrivilege</strong> et <strong>SeAssignPrimaryToken</strong>.</p>
+
+<h1 id="un-peu-de-code-maintenant-c-on-fire"><strong>Un peu de code maintenant (C++ on fire) !</strong></h1>
+
+<p>En combinant les concepts expliqués précédemment, nous avons donc créé
+l’outil CoercedPotato qui exploite le privilège
+<strong>SeImpersonatePrivilege</strong> ou <strong>SeAssignPrimaryToken</strong> pour compromettre
+une machine Windows.</p>
+
+<p>Rentrons dans le dur maintenant ! </p>
+
+<h2 id="ouverture-dun-serveur-pipe">Ouverture d’un serveur pipe</h2>
+
+<p>La première étape consiste à lancer un serveur pipe qui attend une
+connexion sur un <strong>named pipe.</strong> L’objectif est de récupérer une
+connexion du compte <strong>SYSTEM</strong>, donc son <strong>access token</strong>, et d’exécuter
+du code en son nom.</p>
+
+<p>Pour ce faire, dans un nouveau thread, nous lançons les fonctions
+suivantes :</p>
+
+<ol>
+  <li><strong>CreateNamedPipe</strong>() – Création d’un serveur pipe en écoute sur le
+<strong>named pipe</strong> donné en paramètre. En fonction des appels RPC que
+nous ferons par la suite, nous écoutons sur un named pipe spécifique
+(par exemple : <strong>\.\pipe\coerced\pipe\srvsvc</strong>).</li>
+</ol>
+
+<p><strong>CreateNamedPipe</strong>(lpName, PIPE_ACCESS_DUPLEX, PIPE_TYPE_BYTE |
+PIPE_WAIT, 10, 2048, 2048, 0, &amp;sa)</p>
+
+<ol>
+  <li><strong>ConnectNamedPipe()</strong> – Mise du serveur pipe en attente d’une
+connexion entrante. Cela permet de mettre en pause le thread.</li>
+</ol>
+
+<p><strong>ConnectNamedPipe</strong>(hPipe, NULL)</p>
+
+<ol>
+  <li><strong>ImpersonateNamedPipeClient()</strong> – Une fois une connexion obtenue,
+nous nous placons dans le contexte de sécurité du client pour le reste du
+code exécuté. La connexion est contenue dans la variable <strong>hPipe</strong>.</li>
+</ol>
+
+<p><strong>ImpersonateNamedPipeClient</strong>(hPipe)</p>
+
+<ol>
+  <li><strong>OpenThreadToken()</strong> – Lancement d’un nouveau thread dans le contexte
+de sécurité du client. Cela n’est possible que si la connexion au
+serveur pipe a été effectuée avec un <strong>impersonation token</strong>.</li>
+</ol>
+
+<p><strong>OpenThreadToken</strong>(GetCurrentThread(), TOKEN_ALL_ACCESS, FALSE,
+&amp;hToken)</p>
+
+<ol>
+  <li><strong>CreateProcessWithTokenW()</strong> – Dans ce thread, nous venons démarrer un
+nouveau processus (par exemple <strong>cmd.exe</strong>) à l’aide de
+l’<strong>impersonation token</strong>. Cela n’est possible qu’avec un
+<strong>impersonation token</strong> de niveau 3 ou 4.</li>
+</ol>
+
+<p><strong>CreateProcessWithTokenW</strong>(hToken, LOGON_NETCREDENTIALS_ONLY, NULL,
+newCommandLine, dwCreationFlags, lpEnvironment, lpCurrentDirectory, &amp;si,
+&amp;pi)</p>
+
+<p>Et voilà ! Nous sommes maintenant capables d’exécuter du code en tant
+qu’un autre utilisateur dès lors qu’il se connecte sur notre serveur
+pipe.</p>
+
+<p>Toutes ces fonctions sont documentées sur le site de Microsoft
+<a href="https://learn.microsoft.com/">https://learn.microsoft.com/</a>.</p>
+
+<p>Maintenant que tout est en place, il ne reste plus qu’à forcer le compte
+<strong>NT AUTHORITY\SYSTEM</strong> à s’authentifier !</p>
+
+<h2 id="création-du-lien-rpc">Création du lien RPC</h2>
+
+<p>Selon la fonction RPC vulnérable que nous allons appeler, il peut être
+nécessaire de créer une liaison avec l’interface RPC que nous voulons
+utiliser : nous devons créer un <strong>RPC binding</strong> <strong>handle</strong>. Une
+interface RPC pourrait s’apparenter à une classe en programmation
+orientée objet. Elle implémente donc un certain nombre de
+méthodes/fonctions. Nous commençons par définir la manière dont la
+connexion RPC doit être établie en appelant la fonction
+<strong>RpcStringBindingCompose()</strong> :</p>
+
+<p><strong>RpcStringBindingCompose</strong>(nullptr, (RPC_WSTR)L”ncalrpc”, nullptr,
+nullptr, nullptr, &amp;bindingString);</p>
+
+<p>Cela va permettre de créer une description de la liaison RPC qui va être
+établie pour spécifier un certain nombre de paramètres. Nous spécifions
+d’ailleurs le paramètre <strong>sequence protocol</strong>, ici <strong>ncalrpc</strong>, qui est
+un protocole permettant les connexions interprocessus. Le pointeur NULL
+sur les autres paramètres permet une liaison dynamique des interfaces
+RPC auxquelles se connecter et d’effectuer les connexions en local.</p>
+
+<p>Nous lançons ensuite la fonction <strong>RpcBindingFromStringBinding</strong> pour
+effectuer la connexion RPC sur le serveur cible (localhost dans notre
+cas) et récupérer cette liaison dans la variable <strong>Binding</strong>.</p>
+
+<p><strong>RpcBindingFromStringBinding</strong>(bindingString, &amp;binding_h)</p>
+
+<p>Et voilà ! Nous avons maintenant établi une connexion RPC en local.
+Cette liaison RPC peut être maintenant utilisée pour appeler des
+fonctions RPC implémentées sur différentes interfaces.</p>
+
+<h2 id="maintenant-que-tout-est-en-place-plus-quà-appeler-une-fonction-rpc-vulnérable">Maintenant que tout est en place, plus qu’à appeler une fonction RPC vulnérable</h2>
+
+<p>La fin de la partie technique est proche, tenez bon ! 😊</p>
+
+<p>Pour faire appel à une fonction RPC en C++, nous devons premièrement
+disposer d’un client compilé de l’interface ciblée : pour l’exemple,
+nous prendrons <strong>MS-EFSR</strong>. Pour faire simple, pour appeler les
+fonctions qui nous intéressent, il faut le code qui implémente les
+fonctions RPC, notre client RPC.</p>
+
+<p>C’est là que ça se complique… L’objectif est donc de récupérer un
+fichier IDL (Interface Definition File) décrivant les fonctions de
+l’interface RPC. Ce fichier permet de compiler le code pour le client et
+le serveur. L’auteur @itm4n a (heureusement) écrit un article permettant
+grandement d’aider les personnes se lançant dans cette quête :
+<a href="https://itm4n.github.io/from-rpcview-to-petitpotam/">https://itm4n.github.io/from-rpcview-to-petitpotam/</a>.</p>
+
+<p>Finalement, après avoir tenté plusieurs techniques compliquées et non
+concluantes, il s’est avéré qu’une méthode reste la plus fiable : RTFM !</p>
+
+<p>Pour chaque interface RPC, Microsoft a publié le fichier IDL dans la
+documentation officielle.</p>
+
+<p><a href="https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-efsr/4a25b8e1-fd90-41b6-9301-62ed71334436">https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-efsr/4a25b8e1-fd90-41b6-9301-62ed71334436</a></p>
+
+<p><img src="/assets/img/articles/coercedpotato/image9.png" style="width:6.3in;height:4.57222in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, capture d’écran, Police Description générée automatiquement" /></p>
+
+<p>Il suffit donc de copier-coller le contenu de l’IDL dans un fichier .idl
+d’un projet Visual Studio et de le compiler. A force de nous battre avec
+les problèmes de typages,nous avons fini par trouver une solution plutôt simple.
+Voici notre recette :</p>
+
+<ul>
+  <li>
+    <p><img src="/assets/img/articles/coercedpotato/image10.jpeg" style="width:0.18056in;height:0.19861in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant Visage humain, personne, habits, Humain Description générée automatiquement" />Une
+fois le contenu du fichier IDL récupéré et collé dans un fichier,
+retirer la ligne <strong>import “ms-dtyp.idl”;</strong>. Garder cette ligne
+génère un grand nombre de problèmes de typage qui sont fastidieux à
+débugger.</p>
+  </li>
+  <li>
+    <p>Compiler l’IDL pour détecter de potentiels problèmes de définition
+de types.</p>
+  </li>
+</ul>
+
+<p><img src="/assets/img/articles/coercedpotato/image11.png" style="width:4.59259in;height:1.03526in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, capture d’écran, Police, logiciel Description générée automatiquement" /></p>
+
+<ul>
+  <li>En fonction de ce qui est remonté, ajouter la définition en début de
+fichiers. La définition de ces types se retrouve ici :</li>
+</ul>
+
+<p><a href="https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/24637f2d-238b-4d22-b44d-fe54b024280c">https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/24637f2d-238b-4d22-b44d-fe54b024280c</a></p>
+
+<p><img src="/assets/img/articles/coercedpotato/image12.png" style="width:3.42587in;height:1.67593in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, capture d’écran, Police, algèbre Description générée automatiquement" /></p>
+
+<ul>
+  <li>Continuer ces deux dernières étapes jusqu’à ce que la compilation
+fonctionne sans erreur.</li>
+</ul>
+
+<p>Une fois compilé, le fichier IDL permet d’obtenir trois fichiers :
+<strong>ms-efsr_c.c</strong> (le client RPC), <strong>ms-efsr_s.c</strong> (le serveur RPC) et
+<strong>ms-efsr_h.h</strong> (fichier d’entêtes). Ceux qui nous intéressent dans le
+cadre de l’exploit sont le fichier client RPC et le fichier d’entêtes.
+Ces fichiers implémentent donc toutes les fonctions RPC de l’interface
+<strong>MS-EFSR</strong> :</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image13.png" style="width:3.84466in;height:1.44062in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, capture d’écran, Police, affichage Description générée automatiquement" /></p>
+
+<p>Il ne nous reste plus qu’à l’appeler ! Personnellement, le C et le C++,
+ce n’est pas ma tasse de thé. Ça tombe bien, bien utilisé, ChatGPT est plutôt
+doué pour ça ! 😊</p>
+
+<p>Nous allons donc lui demander de nous fournir le code permettant d’initialiser
+correctement chaque paramètre pour chaque fonction.</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image14.png" style="width:5.76096in;height:3.65648in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, Appareils électroniques, capture d’écran, logiciel Description générée automatiquement" /></p>
+
+<p>Et voilà ! Toutes les fonctions sont implémentées ! Il ne reste plus
+qu’à les appeler pour forcer l’utilisateur <strong>NT AUTHORITY\SYSTEM</strong> à
+s’authentifier sur notre named pipe en écoute.</p>
+
+<p>C’est à ce moment-là que le bug lié aux « / » va faire en sorte qu’un
+processus démarré par <strong>NT AUTHORITY\SYSTEM</strong> (dans notre cas,
+<strong>lsass.exe</strong>) se connecte sur un <strong>named pipe</strong> arbitraire. Par
+exemple, dans le cas de la fonction <strong>EfsRpcOpenFileRaw</strong>, nous plaçons 
+notre payload dans le paramètre <strong>FileName</strong>, qui correspond au
+fichier chiffré que le serveur doit ouvrir pour réaliser ou restaurer
+une sauvegarde. En l’occurrence, nous lui indiquons le fichier
+<strong>\127.0.0.1/pipe/coerced\C$\x00</strong>.</p>
+
+<p>Par exemple, pour la fonction <strong>EfsRpcOpenFileRaw()</strong>, nous définissons
+le payload de la sorte :</p>
+
+<div class="language-cpp highlighter-rouge"><div class="highlight"><pre class="highlight"><code>
+<span class="n">LPWSTR</span> <span class="n">targetedPipeName</span><span class="p">;</span>
+
+<span class="n">targetedPipeName</span> <span class="o">=</span> <span class="p">(</span><span class="n">LPWSTR</span><span class="p">)</span><span class="n">LocalAlloc</span><span class="p">(</span><span class="n">LPTR</span><span class="p">,</span> <span class="n">MAX</span><span class="err">\</span><span class="n">_PATH</span> <span class="err">\</span><span class="o">*</span> <span class="nf">sizeof</span><span class="p">(</span><span class="n">WCHAR</span><span class="p">));</span>
+
+<span class="n">StringCchPrintf</span><span class="p">(</span><span class="n">targetedPipeName</span><span class="p">,</span> <span class="n">MAX</span><span class="err">\</span><span class="n">_PATH</span><span class="p">,</span>
+<span class="s">L"</span><span class="se">\\\\</span><span class="s">127.0.0.1/pipe/coerced</span><span class="se">\\</span><span class="s">C$</span><span class="se">\\\x00</span><span class="s">"</span><span class="p">);</span>
+
+<span class="kt">long</span> <span class="n">flag</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+<span class="n">PVOID</span> <span class="n">pContext</span><span class="p">;</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">EfsRpcOpenFileRaw</span><span class="p">(</span><span class="n">Binding</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">pContext</span><span class="p">,</span> <span class="n">targetedPipeName</span><span class="p">,</span> <span class="n">flag</span><span class="p">);</span>
+
+</code></pre></div></div>
+
+<p>Comme expliqué précédemment, à cause une mauvaise interprétation du
+système Windows, une requête est effectuée sur le fichier
+<a href="file:///\\127.0.0.1\pipe\coerced\pipe\srvsvc">\127.0.0.1\pipe\coerced\pipe\srvsvc</a>
+par le compte <strong>NT AUTHORITY\SYSTEM</strong>.</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image15.png" style="width:5.87746in;height:0.48827in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant capture d’écran, texte, logiciel, Logiciel multimédia Description générée automatiquement" /><img src="/assets/img/articles/coercedpotato/image15.png" style="width:5.896in;height:0.69375in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant capture d’écran, texte, logiciel, Logiciel multimédia Description générée automatiquement" /></p>
+
+<p>Grâce à notre serveur pipe, nous récupérons l’authentification et nous lançons 
+un nouveau processus “cmd.exe” !</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image16.png" style="width:6.3in;height:1.77292in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, capture d’écran, Police, logiciel Description générée automatiquement" /></p>
+
+<p>That is all folks 😊. Et en prime, un petit schéma récapitulatif de
+l’attaque !</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image17.png" style="width:5.94589in;height:4.68903in;display:block; margin-left:auto; margin-right:auto" /></p>
+
+<h2 id="finalement-coercedpotato">Finalement, CoercedPotato !</h2>
+
+<p>Nous avons finalement abouti à la création d’un outil élargissant ce
+comportement sur l’ensemble (ou presque) des fonctions RPC connues pour
+être vulnérables.</p>
+
+<p>Ainsi, il est possible de choisir de manière précise quelle fonction RPC
+utiliser, ou de toutes les forcer afin d’en trouver une valide.</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image18.png" style="width:6.3in;height:3.64444in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, capture d’écran, Police, conception Description générée automatiquement" /></p>
+
+<p>A date de l’article, seules les interfaces suivantes sont exploitables :</p>
+
+<ul>
+  <li>
+    <p>Des fonctions implémentées sur l’interface <strong>MS-RPRN</strong> ;</p>
+  </li>
+  <li>
+    <p>Des fonctions implémentées sur l’interface <strong>MS-EFSR</strong>.</p>
+  </li>
+</ul>
+
+<p>La finalité de <strong>CoercedPotato</strong> est de parcourir l’ensemble de ces
+méthodes de coercition jusqu’à en trouver une qui fonctionne.</p>
+
+<h2 id="avancement-de-notre-recherche-petite-désillusion">Avancement de notre recherche : petite désillusion</h2>
+
+<p>Comme indiqué précédemment, P0dalirus a rassemblé un ensemble de
+fonctions RPC vulnérables pour forcer une authentification d’un compte
+machine sur le réseau, le tout dans l’outil Coercer
+(<a href="https://github.com/p0dalirius/Coercer">https://github.com/p0dalirius/Coercer</a>). Ce projet est notamment
+accompagné d’un autre projet qui référence toutes les fonctions RPC
+potentiellement vulnérables, mais qui n’ont pas encore été testées,
+soient plus de 240 fonctions…
+(<a href="https://github.com/p0dalirius/windows-coerced-authentication-methods">https://github.com/p0dalirius/windows-coerced-authentication-methods</a>)</p>
+
+<p>D’instinct, nous sommes partis du principe que toutes ces méthodes
+seraient exploitables dans le cadre d’une escalade de privilèges en
+local. Mais… c’est plus compliqué que ça !</p>
+
+<p>Les fonctions RPC vulnérables qui sont aujourd’hui identifiées ont
+toutes un point commun : elles prennent en entrée le chemin d’un fichier
+qui est censé être requêté par un processus lancé par le compte
+<strong>SYSTEM</strong>.</p>
+
+<p>Dans le cadre de <strong>MS-RPRN</strong>, c’est le processus <strong>spoolsv.exe</strong> qui
+effectue une requête sur le named pipe. Pour <strong>MS-EFSR</strong>, c’est
+<strong>lsass.exe</strong>.</p>
+
+<p>Maintenant, prenons d’autres interfaces qui n’ont pas encore été testées,
+par exemple <strong>MS-EVEN</strong>. Cette interface RPC est implémentée par le
+processus <strong>svchost.exe</strong> dans le contexte de sécurité de l’utilisateur
+<strong>NT AUTHORITY\LOCAL SERVICE</strong>, soit un compte local disposant du niveau
+de privilèges limités.</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image19.png" style="width:4.21781in;height:2.01062in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, capture d’écran, affichage, nombre Description générée automatiquement" /></p>
+
+<p>Par conséquent, forcer ce processus à effectuer une authentification sur
+un named pipe que nous contrôlons n’a pas forcément de sens dans notre
+quête d’élévation de privilèges, puisque nous récupérons une connexion du
+compte <strong>NT AUTHORITY\LOCAL SERVICE</strong>.</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image20.png" style="width:6.3in;height:2.06736in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, logiciel, Police, Page web Description générée automatiquement" /></p>
+
+<p><strong>Toutes les fonctions RPC des interfaces RPC implémentées par des
+processus lancés dans le contexte de sécurité d’utilisateurs à faibles
+privilèges ne sont donc pas intéressantes dans notre cas.</strong></p>
+
+<p>Prenons ensuite le cas de <strong>MS-SRVS</strong>. Cette interface RPC est bien
+implémentée par un processus lancé en tant que <strong>SYSTEM</strong>. Mais ce n’est
+forcément pas suffisant !</p>
+
+<p>Prenons l’une de ses fonctions RPC telles que définies dans la
+documentation Microsoft : <strong>NetrFileGetInfo()</strong>.</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image21.png" style="width:6.3in;height:2.21319in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, Police, capture d’écran, blanc Description générée automatiquement" /></p>
+
+<p>Elle prend en paramètre 4 variables : <strong>ServerName</strong>, soit l’adresse
+serveur qui peut être un named pipe, <strong>FileId</strong>, soit l’ID d’un fichier
+(inconnu dans notre cas), <strong>Level</strong>, soit le niveau d’information que
+nous voulons récupérer et <strong>InfoStruct</strong>, soit la variable qui recueille
+les informations du fichier. Nous écrivons ainsi le code suivant
+permettant d’appeler cette fonction :</p>
+
+<div class="language-cpp highlighter-rouge"><div class="highlight"><pre class="highlight"><code>
+<span class="kt">long</span> <span class="nf">callNetrFileGetInfo</span><span class="p">(</span><span class="n">wchar</span><span class="err">\</span><span class="n">_t</span><span class="err">\</span><span class="o">*</span> <span class="n">targetedNamedPipe</span><span class="p">){</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="n">HRESULT</span> <span class="n">hr</span><span class="p">;</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="n">DWORD</span> <span class="n">level</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="n">LPFILE</span><span class="err">\</span><span class="n">_INFO</span> <span class="n">InfoStruct</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="n">DWORD</span> <span class="n">fileId</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>  
+<span class="err"> </span> <span class="err"> </span>  
+<span class="err"> </span> <span class="err"> </span> <span class="n">RpcTryExcept</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="p">{</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="err"> </span> <span class="err"> </span> <span class="n">hr</span> <span class="o">=</span> <span class="n">NetrFileGetInfo</span><span class="p">(</span><span class="n">targetedNamedPipe</span><span class="p">,</span> <span class="n">fileId</span><span class="p">,</span> <span class="n">level</span><span class="p">,</span>
+<span class="n">InfoStruct</span><span class="p">);</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="p">}</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="n">RpcExcept</span><span class="p">(</span><span class="n">EXCEPTION</span><span class="err">\</span><span class="n">_EXECUTE</span><span class="err">\</span><span class="n">_HANDLER</span><span class="p">);</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="p">{</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="err"> </span> <span class="err"> </span> <span class="n">hr</span> <span class="o">=</span> <span class="n">RpcExceptionCode</span><span class="p">();</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="err"> </span> <span class="err"> </span> <span class="n">std</span><span class="o">::</span><span class="n">cerr</span> <span class="o">&amp;</span><span class="n">lt</span><span class="p">;</span><span class="o">&amp;</span><span class="n">lt</span><span class="p">;</span> <span class="s">"\[-\] An error has occurred during</span><span class="err">
+</span><span class="s">NetrFileGetInfo() : "</span> <span class="o">&amp;</span><span class="n">lt</span><span class="p">;</span><span class="o">&amp;</span><span class="n">lt</span><span class="p">;</span> <span class="n">hr</span> <span class="o">&amp;</span><span class="n">lt</span><span class="p">;</span><span class="o">&amp;</span><span class="n">lt</span><span class="p">;</span> <span class="n">std</span><span class="o">::</span><span class="n">endl</span><span class="p">;</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="p">}</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="n">RpcEndExcept</span><span class="p">;</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="k">return</span> <span class="n">hr</span><span class="p">;</span>  
+<span class="p">}</span>
+
+</code></pre></div></div>
+
+<p>Nous pourrions penser qu’il suffit de répéter l’exploit précédent en
+injectant notre payload dans <strong>ServerName</strong>… Mais non ! La connexion sur
+le named pipe est effectuée par l’utilisateur qui a lancé l’outil, soit
+nous-mêmes.</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image22.png" style="width:5.94024in;height:1.84105in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, logiciel, Page web, Icône d’ordinateur Description générée automatiquement" /></p>
+
+<p>Exploiter cette fonction en indiquant un emplacement sur le réseau
+pourrait fonctionner pour provoquer une authentification sur le réseau,
+dans la mesure où c’est le compte machine qui prendrait le relai et
+effectuerait la connexion. <strong>Mais en local, c’est un « auto-pwn » !</strong>  ☹</p>
+
+<p>Pour finir l’illustration de nos propos, continuons maintenant avec la
+fonction <strong>NetrpGetFileSecurity()</strong>.</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image23.png" style="width:5.63841in;height:1.86533in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, capture d’écran, Police, blanc Description générée automatiquement" /></p>
+
+<p>Le code suivant a été utilisé :</p>
+<div class="language-cpp highlighter-rouge"><div class="highlight"><pre class="highlight"><code>
+<span class="c1">// shareName doit correspondre à un partage réseau valide.</span>
+
+<span class="kt">long</span> <span class="nf">callNetrpGetFileSecurity</span><span class="p">(</span><span class="n">wchar</span><span class="err">\</span><span class="n">_t</span><span class="err">\</span><span class="o">*</span> <span class="n">shareName</span><span class="p">)</span> <span class="p">{</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="kt">long</span> <span class="n">result</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>  
+  
+<span class="err"> </span> <span class="err"> </span> <span class="n">wchar</span><span class="err">\</span><span class="n">_t</span><span class="err">\</span><span class="o">*</span> <span class="n">serverName</span><span class="p">;</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="n">serverName</span> <span class="o">=</span> <span class="p">(</span><span class="n">wchar</span><span class="err">\</span><span class="n">_t</span><span class="err">\</span><span class="o">*</span><span class="p">)</span><span class="n">LocalAlloc</span><span class="p">(</span><span class="n">LPTR</span><span class="p">,</span> <span class="n">MAX</span><span class="err">\</span><span class="n">_PATH</span> <span class="err">\</span><span class="o">*</span>
+<span class="k">sizeof</span><span class="p">(</span><span class="n">WCHAR</span><span class="p">));</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="n">StringCchPrintf</span><span class="p">(</span><span class="n">serverName</span><span class="p">,</span> <span class="n">MAX</span><span class="err">\</span><span class="n">_PATH</span><span class="p">,</span> <span class="s">L"localhost"</span><span class="p">);</span>  
+  
+<span class="err"> </span> <span class="err"> </span> <span class="n">wchar</span><span class="err">\</span><span class="n">_t</span><span class="err">\</span><span class="o">*</span> <span class="n">lpFileName</span><span class="p">;</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="n">lpFileName</span> <span class="o">=</span> <span class="p">(</span><span class="n">wchar</span><span class="err">\</span><span class="n">_t</span><span class="err">\</span><span class="o">*</span><span class="p">)</span><span class="n">LocalAlloc</span><span class="p">(</span><span class="n">LPTR</span><span class="p">,</span> <span class="n">MAX</span><span class="err">\</span><span class="n">_PATH</span> <span class="err">\</span><span class="o">*</span>
+<span class="k">sizeof</span><span class="p">(</span><span class="n">WCHAR</span><span class="p">));</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="n">StringCchPrintf</span><span class="p">(</span><span class="n">lpFileName</span><span class="p">,</span> <span class="n">MAX</span><span class="err">\</span><span class="n">_PATH</span><span class="p">,</span> <span class="s">L"foo1234"</span><span class="p">);</span>  
+  
+<span class="err"> </span> <span class="err"> </span> <span class="n">SECURITY</span><span class="err">\</span><span class="n">_INFORMATION</span> <span class="n">RequestedInformation</span> <span class="o">=</span>
+<span class="n">OWNER</span><span class="err">\</span><span class="n">_SECURITY</span><span class="err">\</span><span class="n">_INFORMATION</span> <span class="o">|</span> <span class="n">GROUP</span><span class="err">\</span><span class="n">_SECURITY</span><span class="err">\</span><span class="n">_INFORMATION</span> <span class="o">|</span>
+<span class="n">DACL</span><span class="err">\</span><span class="n">_SECURITY</span><span class="err">\</span><span class="n">_INFORMATION</span><span class="p">;</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="n">PADT</span><span class="err">\</span><span class="n">_SECURITY</span><span class="err">\</span><span class="n">_DESCRIPTOR</span> <span class="n">SecurityDescriptor</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>  
+  
+  
+<span class="err"> </span> <span class="err"> </span> <span class="n">result</span> <span class="o">=</span> <span class="n">NetrpGetFileSecurity</span><span class="p">(</span><span class="n">serverName</span><span class="p">,</span> <span class="n">shareName</span><span class="p">,</span> <span class="n">lpFileName</span><span class="p">,</span>
+<span class="n">RequestedInformation</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">SecurityDescriptor</span><span class="p">);</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="n">wprintf</span><span class="p">(</span><span class="s">L"NetrpGetFileSecurity returned %lx</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">result</span><span class="p">);</span>  
+<span class="err"> </span> <span class="err"> </span> <span class="k">return</span> <span class="n">result</span><span class="p">;</span>  
+<span class="p">}</span>
+
+</code></pre></div></div>
+
+<p>Pour utiliser cette fonction, il est nécessaire d’utiliser un partage
+réseau valide. Une erreur est renvoyée le cas contraire. Une fois cette
+condition remplie, il est effectivement possible de forcer l’exécution
+d’une requête par l’utilisateur <strong>NT AUTHORITY\SYSTEM</strong>. Petit bémol :
+le chemin indiqué correspond à un chemin de fichier absolu…</p>
+
+<p><img src="/assets/img/articles/coercedpotato/image24.png" style="width:5.86999in;height:1.76867in;display:block; margin-left:auto; margin-right:auto" alt="Une image contenant texte, logiciel, Page web, Icône d’ordinateur Description générée automatiquement" /></p>
+
+<p>Cette fonction ne peut donc pas être utilisée pour élever nos privilèges
+en local.</p>
+
+<p>Pour résumer, la recherche de fonctions vulnérables pour une élévation
+de privilèges en local requiert finalement plus de prérequis que prévu.
+Certaines interfaces RPC sont exploitables pour de la coercition
+d’authentification sur le réseau, mais pas en local. Pour autant, nous
+continuons de chercher de nouvelles méthodes vulnérables ! </p>
+
+<p>En revanche, les fonctions actuellement implémentées dans notre outil
+n’ont pas été patchées et ne seront certainement pas patchées, dans la
+mesure où leurs comportements sont considérés comme « légitimes » par
+Microsoft.</p>
+
+<p>Vous retrouvez le code de l’outil ici :
+<a href="https://github.com/hackvens/CoercedPotato"><span>https://github.com/hackvens/CoercedPotato</span></a>.</p>
+
+<p>Notre PoC a été testé sur Windows 10, Windows Server 2016, Windows
+Server 2022 et Windows 11 ! 🥳</p>
+
+<p>Et voilà, vous savez tout à propos de CoercedPotato !</p>
+
+<h1 id="remerciements"><strong>Remerciements</strong></h1>
+
+<p>Nous souhaiterions remercier toutes celles et ceux qui nous ont apporté
+leurs aides durant nos recherches et plus particulièrement :</p>
+
+<ul>
+  <li>
+    <p><strong>Rémi GASCOU</strong> (@Podalirius) pour ses travaux sur l’utilisation
+d’appels RPC et la création de l’outil Coercer.</p>
+  </li>
+  <li>
+    <p><strong>Clément LABRO</strong> (@itm4n) pour ses articles et recherches sur
+Printspoofer et Petitpotam.</p>
+  </li>
+  <li>
+    <p><strong>Guillaume DAUMAS</strong> (@BlackWasp) pour ses relectures et conseils.</p>
+  </li>
+  <li>
+    <p><strong>Advens</strong> pour l’organisation de la Hackvens ainsi que le temps
+alloué à nos recherches.</p>
+  </li>
+</ul>
+
+<p>🥔</p>
+
+<p>Un article de <em>Raphaël HUON et Théo BERTRAND</em></p>
+
+
+    </div>
+</div>
+
+
+    </div>
+  </body>
+</html>

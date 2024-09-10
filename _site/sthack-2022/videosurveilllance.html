@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Videosurveillance</title>
+<link rel="stylesheet" href="/assets/css/styles.css">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">
+
+    <link rel="stylesheet" type="text/css" href="/assets/css/monokai.css">
+  </head>
+  <body data-bs-theme="dark">
+    <header class="d-flex py-3 mb-4 border-bottom" style="align-items: center; justify-content: space-around;">
+    <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
+      <span class="fs-4"><span class="logo1">Hack</span><span class="logo2">vens</span></span>
+    </a>
+    <button id="btnSwitch" class="">💡/🌙</button>
+    <script defer="defer">
+      document.getElementById('btnSwitch').addEventListener('click',()=>{
+      if (document.body.getAttribute('data-bs-theme') == 'dark') {
+          document.body.setAttribute('data-bs-theme','light')
+          document.documentElement.style.setProperty("--logo-color1", "#161616")
+      }
+      else {
+          document.body.setAttribute('data-bs-theme','dark')
+          document.documentElement.style.setProperty("--logo-color1", "#fff")
+
+      }
+      })
+    </script>
+  </header>
+    <div class="container">
+     <div class="post">
+    <div class="post__back">
+    	<a href="/">&lt;-- home</a>
+    </div>
+    <div class="post__title">
+    	<h1>Sthack 2022 / Videosurveillance</h1>
+	<i>May 20, 2022</i>
+    </div>
+    <div class="post__meta">
+    	<p></p>
+    </div>
+    <div class="post__content"?>
+        <h1 id="vidéosurveillance">Vidéosurveillance</h1>
+<p>Pour cette édition de la Sthack, nous avons eu le droit à un petit challenge de forensic assez varié. Le but de celui était de retrouver un flux vidéo à partir d’une écoute réseau.</p>
+
+<h2 id="analyse-de-lécoute">Analyse de l’écoute</h2>
+<p>Nous commençons d’abord par analyser l’écoute réseau, nous nous rendons compte rapidement de la présence de flux RTP. Ce protocole est utilisé pour le transport de flux média, comme les appels téléphoniques.</p>
+
+<p><img src="/assets/img/sthack2022/videosurveillance/echange_RTP.png" alt="échange RTP" /></p>
+
+<p>Wireshark nous permet facilement d’analyser cet échange RTP via le menu “Telephonie &gt; RTP &gt; Flux RTP” :</p>
+
+<p><img src="/assets/img/sthack2022/videosurveillance/RTP.png" alt="flux RTP" /></p>
+
+<p>Et bingo ! Nous obtenons bien un appel téléphonique, une personne semble laisser un message : “Salut, j’ai vu dans les logs du <strong>Pfsense</strong> que tu n’arrives pas à te connecter en SSH. Alors euh, j’ai vu dans les logs que le numéro de port il est bon, je te redonne le mot de passe, c’est <strong>sofitel2011</strong>. S O F I T E L, en minuscule 2011”.</p>
+
+<h2 id="a-la-recherche-du-pfsense">A la recherche du Pfsense</h2>
+
+<p>Nous essayons donc de retrouver un serveur SSH sur lequel l’une des deux adresses IP aurait pu tenter de se connecter. Pour cela, nous essayons le filtre ssh avec wireshark, sans succès… Nous nous disons que si la connexion SSH n’a pas été interceptée, l’IP du Pfsense doit quand même se trouver dans la liste des IP contactées. Afin de gagner du temps, nous scannons uniquement les 1000 premiers ports des IP identifiées pendant l’analyse réseau et nous finissons par trouver un serveur avec une fausse interface web Pfsense.</p>
+
+<p><img src="/assets/img/sthack2022/videosurveillance/pfsenseweb.png" alt="Reconstitution de l'interface web Pfsense" /></p>
+
+<p>Nous réalisons ensuite un scan de l’ensemble des ports de l’IP du pfsense 212.47.234.75.Après quelques minutes d’attentes, nous trouvons un service SSH sur le port 32712. A la suite de plusieurs tentatives, nous arrivons à nous connecter au service avec l’utilisateur root et le mot de passe donné dans l’appel téléphonique.</p>
+
+<h2 id="découverte-de-sous-réseau">Découverte de sous-réseau</h2>
+
+<p>Avec un accès en ssh sur une machine, nous tentons de rebondir sur un autre réseau pour vérifier notre théorie. Pour cela, nous examinons d’abord les différentes intefaces de la machine :</p>
+
+<p><img src="/assets/img/sthack2022/videosurveillance/ipa.png" alt="ip a" /></p>
+
+<p>Nous remarquons tout de suite qu’une interface est connectée au réseau 172.16.0.10/24. Pour avoir des informations sur les différentes connexions actives que la machine pourrait avoir nous utilisons la commande netstat -leaputn.</p>
+
+<p><img src="/assets/img/sthack2022/videosurveillance/netstat.png" alt="Rebond" /></p>
+
+<p>Nous voyons plusieurs connexions ssh sur la machine 172.16.0.142, nous essayons de nous connecter en ssh avec les mêmes identifiants et ça fonctionne :)</p>
+
+<p><img src="/assets/img/sthack2022/videosurveillance/ssh2.png" alt="Nouveau serveur" /></p>
+
+<h2 id="récupération-de-la-vidéo">Récupération de la vidéo</h2>
+
+<p>Nous remarquons que dans le répertoire /root il y a un fichier index.html. Nous essayons de récupérer le fichier via scp, mais on constate assez vite que ce n’est pas possible… Nous utilisons donc la old fashioned way : base64.</p>
+
+<p><img src="/assets/img/sthack2022/videosurveillance/base64.png" alt="base64" /></p>
+
+<p>Nous récupèrons le fichier, nous l’ouvrons avec VLC et le flag est à nous !</p>
+
+<p><img src="/assets/img/sthack2022/videosurveillance/mp4.png" alt="FLAG" /></p>
+
+
+    </div>
+</div>
+
+
+    </div>
+  </body>
+</html>

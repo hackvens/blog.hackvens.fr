@@ -1,0 +1,139 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cant seem to make you mind</title>
+<link rel="stylesheet" href="/assets/css/styles.css">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">
+
+    <link rel="stylesheet" type="text/css" href="/assets/css/monokai.css">
+  </head>
+  <body data-bs-theme="dark">
+    <header class="d-flex py-3 mb-4 border-bottom" style="align-items: center; justify-content: space-around;">
+    <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
+      <span class="fs-4"><span class="logo1">Hack</span><span class="logo2">vens</span></span>
+    </a>
+    <button id="btnSwitch" class="">💡/🌙</button>
+    <script defer="defer">
+      document.getElementById('btnSwitch').addEventListener('click',()=>{
+      if (document.body.getAttribute('data-bs-theme') == 'dark') {
+          document.body.setAttribute('data-bs-theme','light')
+          document.documentElement.style.setProperty("--logo-color1", "#161616")
+      }
+      else {
+          document.body.setAttribute('data-bs-theme','dark')
+          document.documentElement.style.setProperty("--logo-color1", "#fff")
+
+      }
+      })
+    </script>
+  </header>
+    <div class="container">
+     <div class="post">
+    <div class="post__back">
+    	<a href="/">&lt;-- home</a>
+    </div>
+    <div class="post__title">
+    	<h1>Sthack 2023 / Cant seem to make you mind</h1>
+	<i>June 30, 2023</i>
+    </div>
+    <div class="post__meta">
+    	<p></p>
+    </div>
+    <div class="post__content"?>
+        <p>Voici un petit write up d’un challenge physique proposé de lors de la Sthack 2023  : Can’t seem to make you mind </p>
+
+<p>Ce challenge nous mettait dans la peau d’un Hacktiviste cherchant à s’infiltrer dans les locaux de Evil Corp. Derrière une porte protégée par un Code PIN se trouve tous leurs sale petits secrets, et malheureusement pour eux : on a obtenu ce code et on va bientôt pouvoir les exposés à la face du monde.</p>
+
+<p>MAIS, car il y a toujours un mais (à l’image d’un épisode de Mr Robot, avoir le code ne suffit pas car le système est protégé par une double authentification : un OTP (One Time Password) est envoyé par SMS et il faut rentrer ce code dans les <strong>3 minutes</strong> et en moins de <strong>10 tentatives</strong>. Et bien évidemment : nous n’avons pas accès à ce téléphone.</p>
+
+<p>Là vous vous dites : <em>“Mais comment contourner une MFA, cette sécurité spécifiquement conçu pour vérifier l’identité de la personne qui rentre un mot de passe ?</em>”</p>
+
+<p>Tout d’abord, pour resituer les choses, nous avions accès à un véritable boitier d’accès dont voici une reproduction à nu (qui ne rend pas hommage au soin apporté à la finition par le concepteur du chall mais que voulez vous, dans le feu de l’action à 5h du matin, on oublie de prendre des photos)
+<img src="/assets/img/sthack2023/cantseemtomakeyoumind/c00414212c715b81be848b01f6a9d1a3.png" alt="c00414212c715b81be848b01f6a9d1a3.png" /></p>
+
+<p>Nous avions également accès à la doc explicative ainsi qu’au code de l’application et grâce à lui, on peut d’ores et déjà noter une première information depuis les directives include : 
+Le boitier utilise un Raspberry Pico comme micro controleur :</p>
+
+<p><img src="/assets/img/sthack2023/cantseemtomakeyoumind/b74edf8351cf5356fea3368f5f965955.png" alt="b74edf8351cf5356fea3368f5f965955.png" /></p>
+
+<p>Tout d’abord, nous avons regardé du côté de l’envoi de SMS si y a pas possibilité de modifier le code pour recevoir le SMS, mais les valeurs sont écrite en dur dans le programme.</p>
+
+<p><img src="/assets/img/sthack2023/cantseemtomakeyoumind/25b261150b0e312f4290d7a7d7185753.png" alt="25b261150b0e312f4290d7a7d7185753.png" /></p>
+
+<p>Et puis en regardant comment l’OTP est généré, nous avons tout de suite remarqué une chose : 
+La seed (la valeur initial qui est utilisée pour créer de l’aléatoire et donc éviter que le mot de passe soit prédictible) n’utilise pas la façon habituelle de faire des micro controleur :</p>
+
+<p>En effet, d’habitude pour créer une seed, les micro contoleur vont lire la valeur du voltage sur une de leur borne qui n’est relié à aucun composant : la valeur va ainsi dépendre du bruit ambient (onde radio, interférence des téléphones portables, fond diffus cosmologique etc…). Ce qui rend la prédiction quasiment impossible.</p>
+
+<p>Or ici, la seed est récupérée à partir de la valeur de la température relevé par un capteur interne :</p>
+
+<p><img src="/assets/img/sthack2023/cantseemtomakeyoumind/fdbaf316187c94cc69cc39a57d53e806.png" alt="fdbaf316187c94cc69cc39a57d53e806.png" /></p>
+
+<p>Et une température :  ça peut se controler et si on connait la valeur que va renvoyer le capteur, on peut ainsi prévoir la valeur du code OTP.</p>
+
+<p>A notre disposition, il y a en effet une bombe à froid dont la fiche technique spécifie la température exacte (En l’occurence la notre était à -35 C°) :</p>
+
+<p><img src="/assets/img/sthack2023/cantseemtomakeyoumind/090fdf58368c7c63863d649655bb7a9a.png" alt="090fdf58368c7c63863d649655bb7a9a.png" /></p>
+
+<p>Désormais nous n’avions plus qu’à lire la datasheet technique du Raspberry Pico afin de trouver des informations sur comment le catpeur lit la température et surtout sous quel format la fonction <em>read_onboard_temperature()</em> renvoit la valeur.</p>
+
+<p><img src="/assets/img/sthack2023/cantseemtomakeyoumind/6291c0153bc28b1f135e90a9707d0e28.png" alt="6291c0153bc28b1f135e90a9707d0e28.png" /></p>
+
+<p>Alors nous avons recherché dans ce document de 639 pages https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf 
+, l’information qu’il nous fallait et à la page 566 nous avons trouvé ceci :</p>
+
+<p><img src="/assets/img/sthack2023/cantseemtomakeyoumind/75b339ff373fc15088f967dd870fc823.png" alt="75b339ff373fc15088f967dd870fc823.png" /></p>
+
+<p>Super, plus qu’à faire une simple équation pour retrouver la valeur <em>raw</em> pour T= -35, super facile non ? … non ?</p>
+
+<p>Et c’est ici que malheureusement, nous avons échoué car oui cher lecteur ou lectrice : 
+le flag on l’a pas eu.</p>
+
+<p>Je pourrais vous lister tout un tas d’excuse à base de manque de sommeil et de temps, de nos outils qui ont mal géré les nombres à virgules etc..  Bref ça n’a pas marché.</p>
+
+<p>Mais en reprenant à froid (et en discutant avec le créateur du challenge), voici le résultat qui aurait pu nous apporter le flag :</p>
+
+<p>Nous savons que la température est calculé comme ceci :</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>uint16_t raw = adc_read();
+const float conversion_factor = 3.3f / (1&lt;&lt;12); 
+float result = raw * conversion_factor;
+float temp = 27 - (result -0.706)/0.001721;
+</code></pre></div></div>
+
+<p>Si on effectue l’opération inverse, nous pouvons définir l’expression suivante :</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>raw = ((27 - (-35)) * 0.001721 + 0.706) / conversion_factor
+raw = 0.812702 / (3.3 / 4096)
+raw = 1008,7355733333 = 1008 (vu qu'à l'origine c'est un type int)
+</code></pre></div></div>
+
+<p>On reprend le code de l’application qu’on modifie pour obtenir la valeur de l’OTP :</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>#define OTP_MIN 100000
+#define OTP_MAX 999999
+
+int main(void){
+	int read_value_for_negative_35 = 1008;
+	unsigned int seed = read_value_for_negative_35 + 324092;
+	srand(seed);		 
+	int otp = OTP_MIN + rand() % (OTP_MAX + 1 - OTP_MIN); 
+	printf("l'OTP est : %d\n", otp);
+	return(1);
+	}
+</code></pre></div></div>
+
+<p><img src="/assets/img/sthack2023/cantseemtomakeyoumind/8d1337025d434fbf4c0033890fc18baf.png" alt="8d1337025d434fbf4c0033890fc18baf.png" /></p>
+
+<p>Il nous aurait ensuite fallu refroidire le boitier jusqu’à une température de -35 C° puis entrée le code PIN initial puis l’OTP pour ouvrir la porte et accéder aux sombres secrets de Evil Corp.</p>
+
+
+    </div>
+</div>
+
+
+    </div>
+  </body>
+</html>

