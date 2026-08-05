@@ -3,7 +3,7 @@ permalink: /:categories/:title.html
 email: ''
 description: Hackvens CTF Orga & Team Writeups
 baseurl: ''
-url: 'https://blog.hackvens.fr'
+url: ''
 twitter_username: hackvens
 github_username: hackvens
 theme: minima
